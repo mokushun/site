@@ -863,7 +863,7 @@
         <ul>
           <li>スタート地点は毎回ランダム（全員べつべつの県から、その県を持って開始）</li>
           <li>手番順はランダム。サイコロの数だけ道路を進み、到着した県だけ獲得・対決します</li>
-          <li>空いている県は先着で獲得。他の人の県ではサイコロ勝負（同じ目は防衛の勝ちで、奪えない）</li>
+          <li>空いている県に着いたらカードクイズ！ 正解すると獲得できます（はずれると獲得できない）。他の人の県ではサイコロ勝負（同じ目は防衛の勝ちで、奪えない）</li>
           <li>同じ地方を3県以上所有すると＋3点。各プレイヤー12回ずつ手番を行うと終了</li>
         </ul><h3>プレイ人数</h3><div class="len-row" id="playerCountRow">
           <button type="button" data-count="2" class="selected">2人</button><button type="button" data-count="3">3人</button></div><h3>あそびかた</h3><div class="len-row" id="humanCountRow">
@@ -1177,7 +1177,8 @@ function renderStatus(){
 }
 
 const cardUiState = { flipped: new Set(), answered: new Map() };
-function buildTradingCard(k){
+function buildTradingCard(k,opts){
+ const gate=!!(opts&&opts.gate);
  const p=PREFS[k],cd=cardOf(k),rg=REGIONS[p.region],no="No."+String(k+1).padStart(2,"0");
  const root=document.createElement("li");root.className="tcard";
  const inner=document.createElement("div");inner.className="tcard-inner";
@@ -1200,16 +1201,16 @@ function buildTradingCard(k){
  };
  cd.choices.forEach(ch=>{
   const b=document.createElement("button");b.type="button";b.className="cq-btn";b.textContent=ch;
-  b.addEventListener("click",(ev)=>{ev.stopPropagation();cardUiState.answered.set(k,ch);applyAnswer(ch);});
+  b.addEventListener("click",(ev)=>{ev.stopPropagation();if(gate){applyAnswer(ch);if(opts.onAnswer)opts.onAnswer(ch===cd.answer);}else{cardUiState.answered.set(k,ch);applyAnswer(ch);}});
   bChoices.appendChild(b);
  });
- if(cardUiState.answered.has(k))applyAnswer(cardUiState.answered.get(k));
- const bFoot=document.createElement("div");bFoot.className="tc-foot";bFoot.textContent="タップで おもて面へ";
+ if(!gate&&cardUiState.answered.has(k))applyAnswer(cardUiState.answered.get(k));
+ const bFoot=document.createElement("div");bFoot.className="tc-foot";bFoot.textContent=gate?"クイズに正解すると獲得できるよ":"タップで おもて面へ";
  back.appendChild(bHead);back.appendChild(bQ);back.appendChild(bChoices);back.appendChild(bExp);back.appendChild(bFoot);
  inner.appendChild(front);inner.appendChild(back);
  root.appendChild(inner);
- if(cardUiState.flipped.has(k))root.classList.add("flipped");
- root.addEventListener("click",()=>{root.classList.toggle("flipped");if(root.classList.contains("flipped"))cardUiState.flipped.add(k);else cardUiState.flipped.delete(k);});
+ if(gate)root.classList.add("flipped");else if(cardUiState.flipped.has(k))root.classList.add("flipped");
+ if(!gate)root.addEventListener("click",()=>{root.classList.toggle("flipped");if(root.classList.contains("flipped"))cardUiState.flipped.add(k);else cardUiState.flipped.delete(k);});
  return root;
 }
 function showSplash(title,sub,kind,ms){
@@ -1256,6 +1257,24 @@ function flashPin(idx){
  const pin=pins&&pins[idx];if(!pin)return;
  pin.classList.remove("just-got");void pin.offsetWidth;pin.classList.add("just-got");
  setTimeout(()=>pin.classList.remove("just-got"),1500);
+}
+function showQuizPopup(k){
+ return new Promise(res=>{
+  if(!cardOf(k)){res(true);return;}
+  const p=PREFS[k];
+  $("cardPopTitle").textContent=p.name+" クイズ！ 正解すると獲得できるよ";
+  const body=$("cardPopBody");body.innerHTML="";
+  let answered=false,correct=false;
+  const btn=$("cardPopBtn");
+  const card=buildTradingCard(k,{gate:true,onAnswer:(ok)=>{answered=true;correct=ok;btn.disabled=false;btn.textContent="とじる";}});
+  card.classList.add("tcard-pop");
+  body.appendChild(card);
+  $("cardOverlay").hidden=false;
+  btn.disabled=true;btn.textContent="こたえを選んでね";
+  let done=false;
+  const finish=()=>{if(done||!answered)return;done=true;$("cardOverlay").hidden=true;btn.disabled=false;btn.textContent="とじる";res(correct);};
+  btn.onclick=finish;
+ });
 }
 function showCardPopup(k,title){
  return new Promise(res=>{
@@ -1539,16 +1558,26 @@ async function resolveArrival(pi){
  const pl=S.players[pi],idx=pl.pos,p=PREFS[idx],owner=S.owners[idx];
  const cd=cardOf(idx);
  const regKey=p.region,regName=(REGIONS[regKey]||{}).name||"",atkBefore=regionCountOf(pi,regKey);
- let gainTitle="";
+ let gainTitle="";let quizShown=false;
   if(cd){$("factBox").innerHTML="<b>"+cd.emoji+" "+p.name+"カード「"+cd.title+"」</b><br>"+cd.fact+"<br>特産品："+cd.specialty;}
   else{$("factBox").innerHTML="<b>"+p.name+"：</b>"+p.fact+"<br>特産品："+p.specialty;}
  if(owner===undefined){
+  let quizOk=true;
+  if(cardOf(idx)){
+   if(pl.cpu){setMsg(pl.name+" が "+p.name+" のクイズに挑戦…");await wait(800);quizOk=Math.random()<2/3;log(pl.name+" のクイズ："+(quizOk?"正解":"不正解"));await wait(600);}
+   else{quizShown=true;quizOk=await showQuizPopup(idx);}
+  }
+  if(!quizOk){
+   setMsg(pl.name+" はクイズに不正解… "+p.name+" は獲得できなかった。");
+   log(pl.name+" は "+p.name+" のクイズに不正解で獲得ならず");
+  }else{
   S.owners[idx]=pi;pl.cards++;gainTitle=p.name+"カードを ゲット！";
   setMsg(pl.name+" が "+p.name+" を獲得！「"+p.specialty+"」カードを手に入れました。");
   log(pl.name+" が "+p.name+" を新たに獲得");
   renderAll();flashPin(idx);
   await showSplash(p.name+" GET！",pl.name+" が獲得！","get",pl.cpu?850:1250);
   if(atkBefore<3&&regionCountOf(pi,regKey)>=3)await showSplash("🎊 "+regName+" 制覇！",pl.name+" が "+regName+" で3県以上！ 地方ボーナス +3点","get",pl.cpu?900:1200);
+  }
  }else if(owner===pi){
   setMsg(pl.name+" は自分の "+p.name+" に到着しました。");
   log(pl.name+" は自分の "+p.name+" に到着");
@@ -1638,7 +1667,7 @@ async function resolveArrival(pi){
   }
  }
  renderAll();
- if(gainTitle&&!pl.cpu)await showCardPopup(idx,gainTitle);
+ if(gainTitle&&!pl.cpu&&!quizShown)await showCardPopup(idx,gainTitle);
  await wait(pl.cpu?350:650);
 }
 async function playTurn(pi){
