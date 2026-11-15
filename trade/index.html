@@ -171,8 +171,8 @@ const pct=v=>v==null?'—':v.toFixed(1)+'%';
 const msg=t=>$('#msg').textContent=t;
 const MR_WARN=500, MR_BAD=300; // 新規停止ライン（両建て・DCA）と、要対応ライン。両口座共通
 const mrCls=r=>r==null?'':r<MR_BAD?'l':r<MR_WARN?'w':'';
-const DEF_G='https://fx.camelliab1.com/oanda/gmo_stats.json';
-const DEF_O='https://fx.camelliab1.com/oanda/stats.json';
+const DEF_G='https://vps.camelliab1.com/oanda/gmo_stats.json';
+const DEF_O='https://vps.camelliab1.com/oanda/stats.json';
 function cfg(){
   return {
     gUrl: LS.getItem('gmo_fx_url')||DEF_G,
@@ -415,7 +415,7 @@ function render(){
 }
 
 /* ---- OANDA チャート（値動き・通貨強弱。データはVPSの /public/、認証なし） ---- */
-const PUBURL='https://fx.camelliab1.com/public/';
+const PUBURL='https://vps.camelliab1.com/public/';
 const ALL_SYMBOLS=["US100","JP225","US500","USDJPY","EURUSD","EURJPY","USDCHF","AUDCHF","GBPCHF","GBPUSD","AUDUSD","CHFJPY","EURGBP"];
 const DEF_SYMBOLS=["USDJPY","EURUSD","US100","JP225"], NSYM=4;
 const normSyms=a=>{const s=[...new Set((a||[]).filter(x=>ALL_SYMBOLS.includes(x)))].slice(0,NSYM);
@@ -500,7 +500,7 @@ document.querySelectorAll('[data-tf]').forEach(b=>b.onclick=()=>{
 });
 
 /* ---- GMO チャート（charts.json、自前 canvas 描画） ---- */
-const CHARTS_URL='https://fx.camelliab1.com/public/charts.json';
+const CHARTS_URL='https://vps.camelliab1.com/public/charts.json';
 let chType=LS.getItem('fx_chart_type')||'candle';
 const ohlc=r=>r.length>=5?{o:r[1],h:r[2],l:r[3],c:r[4]}:{o:r[1],h:r[1],l:r[1],c:r[1]}; // 旧形式 [date, close] にも対応
 function chSeries(){
