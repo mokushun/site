@@ -1,60 +1,186 @@
-  
+/* =========================================================
+   国語室トップ - 学年別の作品ライブラリー
+   ========================================================= */
+
+body:has(.room-intro) main {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 34px 24px 20px;
+}
+
 .room-intro {
-    margin: 0 auto;
-    padding: 0 20px;
-}
-.room-intro a {
-    text-align: center;
-    display: block;
-}  
-.grade-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-  gap:16px;
-  margin:15px 0 25px;
-}
-.work-card{
-  border:1px solid #ddd;
-  border-radius:12px;
-  overflow:hidden;
-  background:#fff;
-  transition:.2s;
-}
-.work-card:hover{
-  transform:translateY(-2px);
-}
-.work-card a{
-  text-decoration:none;
-  color:inherit;
-  display:block;
-}
-.work-card img{
-  width:100%;
-  height:auto;
-  display:block;
-}
-.work-title{
-  padding:10px;
-  font-size:1.2rem;
-  font-weight:bold;
-  line-height:1.5;
-}
-summary{
-  cursor:pointer;
-  font-size:2rem;
-  font-weight:bold;
-  padding:10px 0;
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 34px;
+  padding: clamp(27px, 5vw, 48px) clamp(22px, 5vw, 54px);
+  border: 1px solid #e8e0cf;
+  border-radius: 18px;
   background:
-#f6f6f6;
-  padding:12px 16px;
-  border-radius:8px;
-}
-details{
-  margin-bottom:20px;
-}
-#kokugo-loading{
-  margin:20px 0;
+    radial-gradient(circle at 92% 12%, rgba(196,154,82,.13), transparent 24%),
+    linear-gradient(135deg, #fffefa 0%, #f4f0e5 100%);
+  box-shadow: 0 8px 24px rgba(45, 61, 49, .06);
 }
 
+.room-intro::before {
+  content: "BOOKS  •  STORIES  •  LEARNING";
+  display: block;
+  margin-bottom: 12px;
+  color: #9a8157;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .19em;
+}
 
-/* 既存のCSSをそのままここに貼り付け */
+.room-intro a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 5px 9px 5px 0;
+  padding: 8px 15px;
+  border: 1px solid #cbd9ca;
+  border-radius: 999px;
+  color: #315d4b;
+  background: rgba(255,255,255,.76);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.room-intro a:hover {
+  border-color: #315d4b;
+  color: #fff;
+  background: #315d4b;
+}
+
+.room-intro p {
+  max-width: 760px;
+  margin: 15px 0 19px;
+  color: #46564b;
+  font-family: "Noto Serif JP", "Yu Mincho", serif;
+  font-size: clamp(15px, 2vw, 17px);
+  line-height: 2.05;
+}
+
+body:has(.room-intro) details {
+  margin: 0 0 22px;
+  overflow: hidden;
+  border: 1px solid #e5e1d6;
+  border-radius: 15px;
+  background: #fffefa;
+  box-shadow: 0 4px 16px rgba(45, 61, 49, .045);
+}
+
+body:has(.room-intro) summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  padding: 16px 22px;
+  color: #315d4b;
+  background: #edf3eb;
+  font-family: "Noto Serif JP", "Yu Mincho", serif;
+  font-size: clamp(18px, 2.4vw, 22px);
+  font-weight: 700;
+  line-height: 1.5;
+  transition: background .18s ease;
+}
+
+body:has(.room-intro) summary::-webkit-details-marker { display: none; }
+
+body:has(.room-intro) summary::before {
+  content: "▸";
+  display: inline-block;
+  color: #a47b3e;
+  font-family: sans-serif;
+  font-size: 18px;
+  transition: transform .18s ease;
+}
+
+body:has(.room-intro) details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+body:has(.room-intro) summary:hover { background: #e4ede2; }
+
+.grade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 22px;
+}
+
+.work-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e9e5db;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(35, 52, 40, .045);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.work-card:hover {
+  transform: translateY(-4px);
+  border-color: #c6d5c4;
+  box-shadow: 0 9px 22px rgba(35, 52, 40, .11);
+}
+
+.work-card a {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
+.work-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #f0eee7;
+}
+
+.work-title {
+  flex: 1;
+  padding: 12px 13px 14px;
+  color: #35483b;
+  font-family: "Noto Serif JP", "Yu Mincho", serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.work-card:hover .work-title { color: #8a6631; }
+
+#kokugo-loading {
+  margin: 20px 0;
+  color: #68766d;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .grade-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  body:has(.room-intro) main { padding: 20px 14px 10px; }
+  .room-intro { margin-bottom: 23px; padding: 25px 20px; border-radius: 14px; }
+  .room-intro p br { display: none; }
+  .grade-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px;
+    padding: 13px;
+  }
+  .work-title { padding: 9px 10px 11px; font-size: 12px; }
+  body:has(.room-intro) summary { padding: 13px 16px; }
+}
+
+@media (max-width: 360px) {
+  .grade-grid { gap: 8px; padding: 10px; }
+  .work-title { font-size: 11px; }
+}

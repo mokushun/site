@@ -1,17 +1,136 @@
-/* サイト共通の枠（ヘッダー・フッター）用。見本として新規に用意 */
-.site-header { background:#1a4a20; color:#fff; padding:14px 16px; }
-.site-header .site-title { font-size:20px; font-weight:700; letter-spacing:.1em; }
-.site-header .site-title a { color:#fff; text-decoration:none; }
-.site-nav { margin-top:6px; font-size:13px; }
-.site-nav a { color:#dcebd8; text-decoration:none; margin-right:14px; }
-.site-nav a:hover { text-decoration:underline; }
-.site-footer { text-align:center; color:#5a5a6e; font-size:12px; padding:24px 12px 32px; }
-.sample-note { max-width:800px; margin:12px auto 0; padding:8px 12px; background:#fff8e1; border:1px solid #e0c96a; font-size:12px; color:#5a4a00; }
-.index-main { max-width:800px; margin:0 auto; padding:24px 16px 48px; font-family:'Noto Serif JP',serif; }
-.index-main h2 { font-size:16px; border-bottom:2px solid #1a4a20; padding-bottom:4px; margin:24px 0 10px; }
-.index-main ul { list-style:none; padding:0; }
-.index-main li { margin:6px 0; }
-.index-main a { color:#2a4a7a; }
-/* Bloggerテーマ側にあった画像ラッパー（移管で消える分の補い） */
+/* =========================================================
+   自学習の国語室 - 共通デザイン
+   文学館の落ち着き + 子どもにも親しみやすい色づかい
+   ========================================================= */
+
+:root {
+  color-scheme: light;
+  --ink: #28372f;
+  --muted: #68766d;
+  --green: #315d4b;
+  --green-dark: #244638;
+  --green-soft: #eaf1e9;
+  --cream: #fbf8f0;
+  --paper: #fffefa;
+  --line: #e5e1d6;
+  --gold: #c49a52;
+  --shadow: 0 8px 24px rgba(45, 61, 49, .07);
+}
+
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  background: var(--cream);
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--cream);
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  font-size: 16px;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; }
+
+a {
+  color: var(--green);
+  text-underline-offset: .2em;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+
+a:hover { color: #8a6631; }
+
+a:focus-visible, summary:focus-visible {
+  outline: 3px solid #d7ad65;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.site-header {
+  position: relative;
+  z-index: 5;
+  color: #fff;
+  background: var(--green-dark);
+  padding: 19px max(22px, calc((100% - 1120px) / 2));
+  box-shadow: 0 3px 14px rgba(26, 48, 35, .12);
+}
+
+.site-title {
+  font-family: "Noto Serif JP", "Yu Mincho", serif;
+  font-size: clamp(21px, 3vw, 27px);
+  font-weight: 700;
+  letter-spacing: .08em;
+  line-height: 1.4;
+}
+
+.site-title a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.site-title a:hover { color: #f0dfbd; }
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 23px;
+  margin-top: 11px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.site-nav a {
+  color: #e7eee7;
+  text-decoration: none;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
+}
+
+.site-nav a:hover {
+  color: #fff;
+  border-bottom-color: #d8c49b;
+}
+
+main { min-height: 55vh; }
+
+.site-footer {
+  margin-top: 48px;
+  padding: 27px 16px 34px;
+  color: #e8eee8;
+  background: var(--green-dark);
+  text-align: center;
+  font-family: "Noto Serif JP", "Yu Mincho", serif;
+  font-size: 13px;
+  letter-spacing: .06em;
+}
+
+.site-footer a { color: #fff; }
+
 .separator { text-align: center; }
-.separator img { max-width: 100%; height: auto; }
+.separator img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+ruby { ruby-position: over; }
+rt {
+  font-size: .52em;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  .site-header { padding: 15px 18px 13px; }
+  .site-nav { gap: 4px 15px; font-size: 12px; }
+  .site-footer { margin-top: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: .01ms !important; }
+}
