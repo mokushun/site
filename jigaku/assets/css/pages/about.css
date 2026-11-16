@@ -1,0 +1,104 @@
+
+  /* 全体のリセットとベース */
+  .kids-page-container {
+    font-family: 'Kiwi Maru', 'Noto Sans JP', sans-serif;
+    color: #3e2723;
+    line-height: 1.8;
+    background-color: #fdfbf7; /* paper-bg */
+    box-sizing: border-box;
+    max-width: 100%;
+    margin: 16px auto;
+  }
+  .kids-page-container *, .kids-page-container *:before, .kids-page-container *:after {
+    box-sizing: border-box;
+  }
+  
+  /* 文字サイズの一貫性（Bloggerの強制リセット対策） */
+  .kids-page-container p, 
+  .kids-page-container span, 
+  .kids-page-container li, 
+  .kids-page-container div {
+    font-size: 16px;
+  }
+  
+  /* 見出し */
+  .kids-main-title {
+    font-size: 1.85rem;
+    font-weight: 800;
+    line-height: 1.4;
+    color: #3e2723;
+    margin: 0 0 16px 0;
+  }
+  @media (min-width: 640px) {
+    .kids-main-title { font-size: 2.5rem; }
+  }
+  .kids-section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #3e2723;
+    border-bottom: 4px solid #fbbf24; /* amber-400 */
+    padding-bottom: 4px;
+    display: inline-block;
+  }
+  @media (min-width: 640px) {
+    .kids-section-title { font-size: 1.875rem; }
+  }
+  .kids-card-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #3e2723;
+    margin: 0 0 8px 0;
+  }
+
+  /* ドット背景 */
+  .kids-dotted-grid {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(#8d6e63 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  /* ふりがな（ルビ）の美調整 */
+  .kids-page-container ruby rt {
+    font-size: 0.55em;
+    color: #795548;
+    letter-spacing: 0.05em;
+    padding-bottom: 1px;
+  }
+
+  /* グリッドレイアウト（レスポンシブ） */
+  .kids-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  @media (min-width: 768px) {
+    .kids-grid-2 { grid-template-columns: 1fr 1fr; }
+  }
+  
+  .kids-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 640px) {
+    .kids-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  /* フレックス（朗読セクション用） */
+  .kids-flex-row {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  @media (min-width: 768px) {
+    .kids-flex-row { flex-direction: row; align-items: center; }
+  }
+
+  /* カスタムカラーと装飾パーツ */
+  .bg-kid-green { background-color: #e8f5e9; color: #2e7d32; }
+  .bg-kid-orange { background-color: #fff3e0; color: #ef6c00; }
+  .bg-kid-blue { background-color: #e3f2fd; color: #1565c0; }
+  .bg-kid-red { background-color: #ffebee; color: #c62828; }

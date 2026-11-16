@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>思考力・脳トレ | 自学習の国語室</title>
+<link rel="stylesheet" href="../assets/css/site.css">
+<link rel="stylesheet" href="../assets/css/pages/thinking.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-title"><a href="../index.html">自学習の国語室</a></div>
+  <nav class="site-nav"><a href="../index.html">国語室トップ</a><a href="index.html">算数室</a></nav>
+</header>
+<main>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500;700&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+
+<div class="separator" style="clear: both;"><img alt="" border="0" width="800" data-original-height="960" data-original-width="1456" src="../assets/img/thinking.jpg"/></div>
+
+<div class="drill-wrap">
+  <a href='https://jigakushu.blogspot.com/p/blog-page_08.html'>🧮 算数教室について</a>
+  <div class="drill-card bounce-in">
+    <div class="drill-header">
+      <div class="drill-badge">しょうがくせい向け けいさんドリル</div>
+      <h1 class="drill-title">みつのかずの 2けたけいさん</h1>
+      <p class="drill-subtitle">じゅんびはいいかな？ 5もん に ちょうせんしよう！</p>
+    </div>
+
+    <div class="drill-body">
+
+      <!-- スタート画面 -->
+      <div id="screen-start" style="text-align: center; padding: 24px 0;">
+        <div style="margin-bottom: 24px;"><span style="font-size: 60px;">✏️</span></div>
+
+        <!-- レベルトグル -->
+        <div class="toggle-row" style="margin-bottom:16px;">
+          <button type="button" onclick="setLevel('standard')" id="btn-level-standard" class="btn-toggle active">
+            ふつう (A+B-C=□)
+          </button>
+          <button type="button" onclick="setLevel('advanced')" id="btn-level-advanced" class="btn-toggle">
+            じょうきゅう (12+□-23=30)
+          </button>
+        </div>
+
+        <!-- パターントグル（新規追加） -->
+        <div class="pattern-toggle" style="margin-bottom:32px;">
+          <button type="button" onclick="setPattern('random')" id="btn-pattern-random" class="btn-pattern active">
+            🎲 ランダム
+          </button>
+          <button type="button" onclick="setPattern('complement')" id="btn-pattern-complement" class="btn-pattern">
+            💡 きりのいい数
+          </button>
+          <button type="button" onclick="setPattern('mixed')" id="btn-pattern-mixed" class="btn-pattern">
+            🔀 ミックス
+          </button>
+        </div>
+
+        <p class="mode-headline">もーど を えらんでね</p>
+
+        <div class="mode-grid">
+          <button type="button" onclick="selectMode('addition')" id="btn-mode-addition" class="btn-mode">➕ たしざん だけ</button>
+          <button type="button" onclick="selectMode('subtraction')" id="btn-mode-subtraction" class="btn-mode">➖ ひきざん だけ</button>
+          <button type="button" onclick="selectMode('mixed')" id="btn-mode-mixed" class="btn-mode">🔀 ごちゃまぜ</button>
+        </div>
+
+        <div id="rule-box-random" class="rule-box">
+          <h4 class="rule-title">💡 るーる：</h4>
+          <ul class="rule-list">
+            <li>2けたの数字が 3つ でてくるよ</li>
+            <li>こたえがマイナス（ひききれない）になるもんだいは でないよ</li>
+            <li>ぜんぶで 5もん あるよ！</li>
+          </ul>
+        </div>
+
+        <div id="rule-box-complement" class="rule-box complement hidden">
+          <h4 class="rule-title">💚 きりのいい数 とは？</h4>
+          <ul class="rule-list">
+            <li>3つのうち 2つを たすと、一の位が 0 になるよ</li>
+            <li>たとえば 12＋38＝50 → 先に計算するとラク！</li>
+            <li>どの2つを 先に計算すると ラクかな？ かんがえてみよう🤔</li>
+          </ul>
+        </div>
+
+        <div id="rule-box-mixed" class="rule-box hidden" style="background:#fff7ed; border-color:#fed7aa; color:#9a3412;">
+          <h4 class="rule-title">🔀 ミックスとは？</h4>
+          <ul class="rule-list">
+            <li>ランダムな問題と「きりのいい数」の問題が まざってでてくるよ</li>
+            <li>💚マークの問題は きりのいい数が かくれてるよ！</li>
+            <li>さがしながら といてみよう！</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- プレイ中画面 -->
+      <div id="screen-playing" class="hidden">
+        <div class="play-info-bar">
+          <div class="play-status-labels">
+            <span id="current-mode-label" class="lbl-mode">たしざん</span>
+            <span id="current-level-label" class="lbl-lvl">レベル: ふつう</span>
+          </div>
+          <div class="play-count-display">
+            <span class="sub">かいとう: </span>
+            <span id="answered-count" class="num">0</span> / 5
+          </div>
+        </div>
+        <div id="questions-list" class="questions-container"></div>
+        <div class="action-bar">
+          <button type="button" onclick="goToStart()" class="btn-back">← やりなおす</button>
+          <button type="button" onclick="finishDrill()" id="btn-submit" class="btn-submit">🔔 こたえあわせをする！</button>
+        </div>
+      </div>
+
+      <!-- 結果画面 -->
+      <div id="screen-result" class="hidden" style="text-align: center; padding: 16px 0;">
+        <div class="score-section">
+          <div id="perfect-badge" class="hidden perfect-crown">👑</div>
+          <div class="score-circle">
+            <span class="score-title">あなたのてんすう</span>
+            <span id="score-display" class="score-num">80</span>
+            <span class="score-max">/ 100 てん</span>
+          </div>
+        </div>
+        <h3 id="result-message" class="result-msg">すごい！がんばったね！</h3>
+        <div class="review-box">
+          <h4 class="review-header">
+            <span>📝 ふりかえり</span>
+            <span class="review-sub">青が正解、赤がまちがい</span>
+          </h4>
+          <div id="review-list" class="review-list-items"></div>
+        </div>
+        <div class="result-actions">
+          <button type="button" onclick="restartDrillSameMode()" class="btn-retry">🔁 おなじモードもう一回</button>
+          <button type="button" onclick="goToStart()" class="btn-home">🏠 もーど をえらびなおす</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="drill-footer">© けいさんドリル Maker</div>
+</div>
+
+
+
+
+</main>
+<footer class="site-footer">自学習の国語室</footer>
+<script src="../assets/js/thinking.js"></script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+
+  /* Scoped CSS Styles for blogger-embedded elements - Does not conflict with external theme */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;750;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  .sd-app-container {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #334155;
+    background-color: #f8fafc;
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+    border: 1px solid #e2e8f0;
+    max-width: 900px;
+    margin: 1rem auto;
+    box-sizing: border-box;
+    font-size: 3rem; /* 👈 これを追加して全体の文字を一回り大きくする */
+  }
+  
+
+  .sd-app-container * {
+    box-sizing: border-box;
+  }
+
+  .sd-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 1rem;
+  }
+
+  .sd-app-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .sd-app-subtitle {
+    font-size: 1.5rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .sd-section-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .sd-grid-grades {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .sd-grid-grades {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  .sd-btn-grade {
+    padding: 0.6rem 0.5rem;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    font-size: 1.5rem;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+  }
+
+  .sd-btn-grade:hover {
+    border-color: #cbd5e1;
+    background-color: #f1f5f9;
+  }
+
+  /* Color themes using custom global CSS variables per selected grade */
+  .sd-theme-grade1 { --active-color: #f43f5e; --active-color-hover: #e11d48; --active-border: #fecdd3; --active-bg: #fff1f2; }
+  .sd-theme-grade2 { --active-color: #f59e0b; --active-color-hover: #d97706; --active-border: #fef3c7; --active-bg: #fefbeb; }
+  .sd-theme-grade3 { --active-color: #10b981; --active-color-hover: #059669; --active-border: #a7f3d0; --active-bg: #ecfdf5; }
+  .sd-theme-grade4 { --active-color: #0ea5e9; --active-color-hover: #0284c7; --active-border: #bae6fd; --active-bg: #f0f9ff; }
+  .sd-theme-grade5 { --active-color: #6366f1; --active-color-hover: #4f46e5; --active-border: #c7d2fe; --active-bg: #eef2ff; }
+  .sd-theme-grade6 { --active-color: #a855f7; --active-color-hover: #9333ea; --active-border: #e9d5ff; --active-bg: #faf5ff; }
+
+  .sd-btn-grade.grade1.active-grade { background-color: #f43f5e; border-color: #f43f5e; color: #ffffff; }
+  .sd-btn-grade.grade2.active-grade { background-color: #f59e0b; border-color: #f59e0b; color: #ffffff; }
+  .sd-btn-grade.grade3.active-grade { background-color: #10b981; border-color: #10b981; color: #ffffff; }
+  .sd-btn-grade.grade4.active-grade { background-color: #0ea5e9; border-color: #0ea5e9; color: #ffffff; }
+  .sd-btn-grade.grade5.active-grade { background-color: #6366f1; border-color: #6366f1; color: #ffffff; }
+  .sd-btn-grade.grade6.active-grade { background-color: #a855f7; border-color: #a855f7; color: #ffffff; }
+
+  .sd-grid-units {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .sd-grid-units {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .sd-grid-units.three-cols {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .sd-btn-unit {
+    text-align: left;
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+  }
+
+  .sd-btn-unit:hover {
+    border-color: #cbd5e1;
+  }
+
+  .sd-btn-unit.active-unit {
+    border-color: var(--active-color);
+    box-shadow: 0 0 0 2px var(--active-border);
+  }
+
+  .sd-btn-unit-tag {
+    display: inline-block;
+    font-size: 1.5rem;
+    font-weight: 900;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    background-color: #f1f5f9;
+    color: #64748b;
+  }
+
+  .sd-btn-unit-tag.active-tag {
+    background-color: var(--active-color);
+    color: #ffffff;
+  }
+
+  .sd-btn-unit-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 0.25rem 0;
+    line-height: 1.3;
+  }
+
+  .sd-btn-unit-desc {
+    font-size: 1.5rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .sd-worksheet {
+    background-color: #ffffff;
+    border: 2px dashed #cbd5e1;
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .sd-worksheet-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .sd-worksheet-header {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+
+  .sd-worksheet-title-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .sd-worksheet-grade-tag {
+    font-size: 1.5rem;
+    font-weight: 850;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.375rem;
+    color: #ffffff;
+    align-self: flex-start;
+  }
+
+  .sd-worksheet-grade-tag.active-tag {
+    background-color: var(--active-color);
+  }
+
+  .sd-worksheet-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .sd-control-bar {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .sd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 0.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+
+  .sd-btn-refresh {
+    background-color: #0f172a;
+    color: #ffffff;
+  }
+
+  .sd-btn-refresh:hover {
+    background-color: #1e293b;
+  }
+
+  .sd-btn-answer {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+  }
+
+  .sd-btn-answer:hover {
+    background-color: #f8fafc;
+  }
+
+  .sd-btn-answer.active {
+    background-color: var(--active-bg);
+    border-color: var(--active-color);
+    color: var(--active-color);
+  }
+
+  .sd-grid-problems {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .sd-grid-problems {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+  }
+
+  .sd-problem-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    background-color: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .sd-problem-num {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.375rem;
+    background-color: #f1f5f9;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 1rem;
+  }
+
+  .sd-math-block {
+    background-color: #ffffff;
+    border: 1px solid #f1f5f9;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    min-height: 4.5rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .sd-answer-block {
+    min-height: 2.75rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s ease;
+    background-color: #f8fafc;
+  }
+
+  .sd-answer-block.revealed {
+    background-color: #ecfdf5;
+    border-color: #a7f3d0;
+    color: #065f46;
+  }
+
+  .sd-answer-label {
+    font-size: 1.5rem;
+    font-weight: 800;
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    border: 1px solid #a7f3d0;
+    background-color: #ffffff;
+    color: #059669;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .sd-answer-placeholder {
+    color: #94a3b8;
+    font-size: 1.5rem;
+    text-align: center;
+    width: 100%;
+    user-select: none;
+  }
+
+  .sd-math-renderer-expr {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    vertical-align: middle;
+  }
+
+  .sd-math-token-number {
+    font-size: 4rem;
+    font-weight: 800;
+    color: #0f172a;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.01em;
+  }
+
+  .sd-math-token-operator {
+    font-size: 4rem;
+    padding: 0 0.1rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .sd-math-token-fraction {
+    display: inline-flex;
+    align-items: center;
+    font-size: 4rem;
+    font-weight: 800;
+    margin: 0 0.2rem;
+    vertical-align: middle;
+  }
+
+  .sd-math-token-fraction-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .sd-math-token-fraction-num {
+    font-size: 4rem;
+    border-bottom: 2px solid #334155;
+    padding: 0 0.1rem 0.1rem 0.1rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .sd-math-token-fraction-den {
+    font-size: 4rem;
+    padding-top: 0.1rem;
+    padding-left: 0.1rem;
+    padding-right: 0.1rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .sd-guidance-card {
+    background-color: #f0fdfa;
+    border: 1px solid #ccfbf1;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sd-guidance-card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f766e;
+    margin: 0;
+  }
+
+  .sd-guidance-card-text {
+    font-size: 1.5rem;
+    color: #115e59;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .sd-math-badge-remainder {
+    background-color: #fef3c7;
+    color: #b45309;
+    font-size: 3rem;
+    font-weight: 950;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    margin: 0 0.2rem;
+  }
+
+  .sd-math-variable-x {
+    font-family: Georgia, serif;
+    font-style: italic;
+    color: #e11d48;
+    background-color: #fff1f2;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid #fecdd3;
+  }
+
+  .sd-math-ratio-ans {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+  }
+
+  .sd-footer {
+    text-align: center;
+    font-size: 1.5rem;
+    color: #94a3b8;
+    margin-top: 2rem;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 1rem;
+  }
+  .separator{
+  	text-align: center;
+  }
+  @media print {
+    .no-print { display: none !important; }
+    .sd-app-container { background-color: #ffffff !important; border: none !important; padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+    .sd-worksheet { border: none !important; padding: 0 !important; margin: 0 !important; }
+    .sd-grid-problems { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 1.5rem !important; }
+    .sd-problem-card { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; break-inside: avoid; }
+    .sd-math-block { background-color: #ffffff !important; border: none !important; }
+    .sd-answer-block { display: none !important; }
+    .sd-print-answer-space { display: block !important; border-top: 1px dashed #cbd5e1; margin-top: 0.5rem; padding-top: 0.5rem; font-size: 0.75rem; color: #94a3b8; }
+    .sd-print-answer-space::after { content: "（ここに答えを書こう）"; }
+    .print-only { display: block !important; }
+    .sd-print-page-break { page-break-before: always; break-before: page; }
+  }
+
+  @media screen {
+    .print-only { display: none !important; }
+    .sd-print-answer-space { display: none !important; }
+  }
