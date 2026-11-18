@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文明シミュレーション 3Dプロトタイプ</title>
+<style>
+:root{color-scheme:dark;--panel:rgba(17,29,31,.88);--line:rgba(215,231,207,.22);--ink:#edf2df;--muted:#b8c8b6}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#91b7c2;color:var(--ink);font-family:system-ui,"Yu Gothic",sans-serif}
+#view{position:fixed;inset:0}canvas{display:block}
+.hud{position:fixed;z-index:2;top:16px;left:16px;right:16px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 15px;backdrop-filter:blur(10px);box-shadow:0 8px 30px #14231c35}
+.brand{font-weight:800;letter-spacing:.04em}.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.stats{display:flex;gap:18px;font-size:13px}.stats b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.controls{position:fixed;z-index:2;bottom:16px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:end;gap:12px;pointer-events:none}
+.controls .panel{pointer-events:auto}.help{font-size:12px;line-height:1.8;color:var(--muted)}
+button{background:#d5bd7a;color:#27352b;border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer}
+button:hover{filter:brightness(1.08)}.buttons{display:flex;gap:7px;flex-wrap:wrap}
+#mode{font-size:12px;color:#f0d89b;margin-top:4px}
+@media(max-width:650px){.hud{top:8px;left:8px;right:8px}.panel{padding:9px 11px}.stats{gap:10px}.stats b{font-size:16px}.controls{left:8px;right:8px;bottom:8px;flex-direction:column;align-items:stretch}.help{display:none}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div id="view"></div>
+<div class="hud">
+ <div class="panel"><div class="brand">THE LIVING WORLD</div><div class="sub">文明シミュレーション / 3D WORLD PROTOTYPE</div><div id="mode">観察モード — 村の成長を眺める世界</div></div>
+ <div class="panel stats"><div>人口<b id="population">24</b></div><div>集落<b id="settlements">3</b></div><div>時代<b>黎明期</b></div></div>
+</div>
+<div class="controls">
+ <div class="panel help">ドラッグ：視点を回転　／　ホイール：ズーム<br>右ドラッグ：視点を平行移動　／　ダブルクリック：村へ戻る</div>
+ <div class="panel buttons"><button id="home">村を見る</button><button id="rotate">自動回転：OFF</button><button id="pause">時間：停止</button></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+const root=document.querySelector('#view');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fc5cc);scene.fog=new THREE.Fog(0x9fc5cc,55,125);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,250);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe4f3ff,0x586447,2.0));
+const sun=new THREE.DirectionalLight(0xffedcf,3.1);sun.position.set(-28,45,24);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-42;sun.shadow.camera.right=42;sun.shadow.camera.top=42;sun.shadow.camera.bottom=-42;sun.shadow.bias=-.0002;scene.add(sun);
+const world=new THREE.Group();scene.add(world);
+const mat=(color,roughness=1)=>new THREE.MeshStandardMaterial({color,roughness});
+const grassMats=[mat(0x719b50),mat(0x82a95a),mat(0x668d49),mat(0x91ad63)];
+const soilMat=mat(0x8a704c),waterMat=new THREE.MeshStandardMaterial({color:0x398da5,roughness:.22,metalness:.08,transparent:true,opacity:.88});
+const tileGeo=new THREE.BoxGeometry(1,.22,1);
+const W=45, half=(W-1)/2, seed=(x,z)=>{let n=Math.sin(x*127.1+z*311.7)*43758.5453;return n-Math.floor(n)};
+const height=(x,z)=>{const hills=Math.sin(x*.22)*.34+Math.cos(z*.19)*.29+Math.sin((x+z)*.13)*.18;return Math.max(-.15,hills+seed(x,z)*.13)};
+const tiles=grassMats.map((m)=>new THREE.InstancedMesh(tileGeo,m,W*W));tiles.forEach(o=>{o.castShadow=true;o.receiveShadow=true;world.add(o)});
+const dummy=new THREE.Object3D(),counts=[0,0,0,0];
+const waterTiles=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.08,1),waterMat,160);world.add(waterTiles);let waterCount=0;
+const hillGeo=new THREE.ConeGeometry(.72,1.7,7),hillMat=mat(0x7d8878);
+const hills=new THREE.InstancedMesh(hillGeo,hillMat,100);world.add(hills);let hillCount=0;
+const forestTrunk=new THREE.CylinderGeometry(.09,.14,.7,6),forestCrown=new THREE.ConeGeometry(.48,1.35,7);
+const trunkMat=mat(0x65452c),leafMats=[mat(0x315d3d),mat(0x3d7045),mat(0x4c7c4a)];
+const trunks=new THREE.InstancedMesh(forestTrunk,trunkMat,500),crowns=leafMats.map(m=>new THREE.InstancedMesh(forestCrown,m,500));world.add(trunks,...crowns);let treeCount=0;
+const waterCenters=[[-13,7,4.7],[-8,-12,3.4],[15,10,3.8]];
+function inWater(x,z){return waterCenters.some(([a,b,r])=>Math.hypot(x-a,z-b)<r);}
+for(let z=-half;z<=half;z++)for(let x=-half;x<=half;x++){
+ const h=height(x,z),water=inWater(x,z)||((Math.abs(x)>20||Math.abs(z)>20)&&seed(x+5,z-9)>.91);
+ if(water){dummy.position.set(x,-.08,z);dummy.scale.set(1,1,1);dummy.updateMatrix();waterTiles.setMatrixAt(waterCount++,dummy.matrix);continue;}
+ const i=Math.floor(seed(x,z)*4);dummy.position.set(x,h-.05,z);dummy.scale.set(1,.8+seed(z,x)*.45,1);dummy.updateMatrix();tiles[i].setMatrixAt(counts[i]++,dummy.matrix);
+ if(h>.48&&seed(x+30,z)>.73&&hillCount<100){dummy.position.set(x,h+.75,z);dummy.scale.setScalar(.8+seed(z,x)*.8);dummy.rotation.y=seed(x,z+1)*6;dummy.updateMatrix();hills.setMatrixAt(hillCount++,dummy.matrix);}
+ if(seed(x*2,z*3)>.87&&Math.hypot(x,z)>5&&treeCount<500){const s=.8+seed(z+2,x)*.6;dummy.position.set(x,h+.28*s,z);dummy.scale.set(s,s,s);dummy.rotation.y=seed(x,z)*6;dummy.updateMatrix();trunks.setMatrixAt(treeCount,dummy.matrix);dummy.position.y+=.73*s;dummy.scale.setScalar(s);dummy.updateMatrix();crowns[Math.floor(seed(z,x+4)*3)].setMatrixAt(treeCount,dummy.matrix);treeCount++;}
+}
+tiles.forEach((o,i)=>{o.count=counts[i];o.instanceMatrix.needsUpdate=true});waterTiles.count=waterCount;hills.count=hillCount;trunks.count=treeCount;crowns.forEach(o=>{o.count=treeCount;o.instanceMatrix.needsUpdate=true});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(180,180),mat(0x536f4b));ground.rotation.x=-Math.PI/2;ground.position.y=-.25;ground.receiveShadow=true;scene.add(ground);
+const houseGroup=new THREE.Group();world.add(houseGroup);
+function house(x,z,size=1,color=0xd6b985){
+ const y=height(x,z);const base=new THREE.Mesh(new THREE.BoxGeometry(size,.8*size,size),mat(color));base.position.set(x,y+.35*size,z);base.castShadow=true;base.receiveShadow=true;houseGroup.add(base);
+ const roof=new THREE.Mesh(new THREE.ConeGeometry(.82*size,.65*size,4),mat(0x814a35));roof.position.set(x,y+1.05*size,z);roof.rotation.y=Math.PI/4;roof.castShadow=true;houseGroup.add(roof);
+ const door=new THREE.Mesh(new THREE.BoxGeometry(.18*size,.38*size,.035),mat(0x49382b));door.position.set(x,y+.2*size,z+size*.51);houseGroup.add(door);
+}
+[[-1,-1,1.3],[2,-1,1.15],[-2,2,1.05],[4,2,.9],[1,4,.9],[-5,-2,.85],[-4,4,.85],[6,-3,.8]].forEach((p,i)=>house(...p,undefined,[0xd7bd89,0xcbb184,0xe0c99b][i%3]));
+const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.8,.15,32),mat(0xb5a078));plaza.position.set(0,height(0,0)+.05,0);plaza.receiveShadow=true;world.add(plaza);
+const people=new THREE.Group();world.add(people);const personMat=[mat(0xb75f3b),mat(0x426b9a),mat(0xd6ad55),mat(0x6d8050)];
+const villagers=[];for(let i=0;i<18;i++){const g=new THREE.Group();const body=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.32,3,6),personMat[i%4]);body.position.y=.32;body.castShadow=true;g.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(.115,8,8),mat(0xe0b58c));head.position.y=.62;g.add(head);people.add(g);const a=i/18*Math.PI*2,r=2.4+(i%5)*.55;g.position.set(Math.cos(a)*r,height(Math.cos(a)*r,Math.sin(a)*r)+.1,Math.sin(a)*r);villagers.push({g,a,r,s:.3+seed(i,8)*.5});}
+const cloudGroup=new THREE.Group();scene.add(cloudGroup);for(let i=0;i<7;i++){const c=new THREE.Group();for(let j=0;j<4;j++){const m=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,transparent:true,opacity:.72}));m.scale.set(1.8,.45,1);m.position.x=(j-1.5)*1.3;c.add(m)}c.position.set(-38+i*13,18+(i%3)*3,-25+(i%4)*14);cloudGroup.add(c);}
+let target=new THREE.Vector3(0,0,0),yaw=.78,pitch=.76,distance=48,auto=false,running=false,drag=null,clock=0;
+function updateCamera(){pitch=THREE.MathUtils.clamp(pitch,.22,1.35);distance=THREE.MathUtils.clamp(distance,13,90);camera.position.set(target.x+Math.sin(yaw)*Math.cos(pitch)*distance,target.y+Math.sin(pitch)*distance,target.z+Math.cos(yaw)*Math.cos(pitch)*distance);camera.lookAt(target);}
+updateCamera();
+renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,button:e.button};renderer.domElement.setPointerCapture(e.pointerId)});
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;if(drag.button===2){const right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0);const forward=new THREE.Vector3().setFromMatrixColumn(camera.matrix,2);target.addScaledVector(right,-dx*.035);target.addScaledVector(forward,dy*.035);}else{yaw-=dx*.006;pitch+=dy*.004;}updateCamera()});
+renderer.domElement.addEventListener('pointerup',()=>drag=null);renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+renderer.domElement.addEventListener('wheel',e=>{distance*=Math.exp(e.deltaY*.001);updateCamera()},{passive:true});
+renderer.domElement.addEventListener('dblclick',()=>home());
+function home(){target.set(0,0,0);yaw=.78;pitch=.76;distance=48;updateCamera()}
+document.querySelector('#home').onclick=home;document.querySelector('#rotate').onclick=e=>{auto=!auto;e.target.textContent='自動回転：'+(auto?'ON':'OFF')};document.querySelector('#pause').onclick=e=>{running=!running;e.target.textContent='時間：'+(running?'進行':'停止')};
+const clockEl=document.createElement('div');clockEl.style.cssText='position:fixed;right:18px;bottom:84px;color:#fff;font-size:12px;text-shadow:0 2px 5px #123';document.body.append(clockEl);
+function animate(){requestAnimationFrame(animate);const dt=Math.min(.05,timer.getDelta());if(running){clock+=dt;villagers.forEach((v,i)=>{v.a+=dt*v.s*.22;const x=Math.cos(v.a)*v.r,y=Math.sin(v.a)*v.r;v.g.position.set(x,height(x,y)+.1,y);v.g.rotation.y=-v.a;});document.querySelector('#population').textContent=24+Math.floor(clock/18);document.querySelector('#settlements').textContent=3+Math.floor(clock/65);clockEl.textContent='村の時間 '+Math.floor(clock/3/60)+':'+String(Math.floor(clock/3)%60).padStart(2,'0');}if(auto){yaw+=dt*.08;updateCamera()}cloudGroup.position.x=Math.sin(performance.now()*.000025)*2;renderer.render(scene,camera)}
+const timer=new THREE.Clock();clock=0;animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body></html>

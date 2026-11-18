@@ -1,0 +1,1891 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>ポピュラス風ゲーム試作</title>
+    <style>
+      button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) { min-height: 2.75rem; }
+      * { box-sizing: border-box; }
+      :root{
+        --bg:#e9e6da; --panel:#f6f3e9; --panel2:#fffdf4; --ink:#26302a; --ink-dim:#5d6a60;
+        --line:#c9c2ab; --accent:#b97f1e; --accent-ink:#7a5205;
+        --vil:#c46a2d; --vil-dark:#96501f;
+        --mana:#e9a13b; --mana-bg:#e3dcc4;
+        --danger:#c23b2a;
+        --shadow:0 2px 10px rgba(50,45,20,.16);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#171c19; --panel:#212824; --panel2:#28302b; --ink:#e7e9df; --ink-dim:#a7b0a4;
+          --line:#3d4741; --accent:#e0aa45; --accent-ink:#f0c877;
+          --mana-bg:#3a3420;
+          --shadow:0 2px 12px rgba(0,0,0,.45);
+        }
+      }
+      html,body{ margin:0; padding:0; }
+      body{
+        background:var(--bg); color:var(--ink);
+        font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,system-ui,sans-serif;
+        -webkit-text-size-adjust:100%;
+      }
+      .wrap{ max-width:1060px; margin:0 auto; padding:14px 14px 28px; }
+      /* ---------- HUD ---------- */
+      .hud{
+        display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:stretch;
+        margin-bottom:10px;
+      }
+      .side-box{
+        background:var(--panel); border:1px solid var(--line); border-radius:10px;
+        padding:8px 12px; box-shadow:var(--shadow); min-width:0;
+      }
+      .side-box .name{ font-weight:700; font-size:.95rem; display:flex; align-items:center; gap:7px; }
+      .dot{ width:12px; height:12px; border-radius:50%; flex:none; background:var(--vil); }
+      .side-box .nums{ font-size:.82rem; color:var(--ink-dim); margin-top:2px; }
+      .side-box .nums b{ color:var(--ink); font-size:1.05rem; }
+      .side-box .nums b.danger{ color:var(--danger); }
+      .jobs{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+      .job-chip{
+        font-size:.74rem; font-weight:700; border-radius:999px; padding:2px 9px; color:#fff;
+      }
+      .job-chip.farm{ background:#6d8f35; } .job-chip.eng{ background:#b06a28; }
+      .mid-box{
+        background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+        padding:8px 14px; text-align:center; min-width:170px;
+      }
+      .mid-box .clock{ font-size:1.25rem; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.04em; }
+      .mid-box .judge{ font-size:.75rem; color:var(--ink-dim); }
+      .mana-row{ display:flex; align-items:center; gap:8px; margin-top:5px; }
+      .mana-row .lbl{ font-size:.78rem; font-weight:700; color:var(--accent-ink); white-space:nowrap; }
+      .manabar{ flex:1; height:10px; border-radius:5px; background:var(--mana-bg); overflow:hidden; min-width:70px; }
+      .manabar > div{ height:100%; background:var(--mana); transition:width .2s linear; }
+      .manabar.low > div{ background:var(--danger); }
+      .mana-num{ font-size:.82rem; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      @media (max-width:640px){
+        .hud{ grid-template-columns:1fr 1fr; }
+        .mid-box{ grid-column:1 / -1; order:3; }
+      }
+      /* ---------- Board ---------- */
+      .board-wrap{
+        position:relative; background:#79a85b; border:1px solid var(--line); border-radius:12px;
+        overflow:hidden; box-shadow:var(--shadow);
+      }
+      canvas#board{ display:block; width:100%; touch-action:none; cursor:pointer; }
+      .banner{
+        position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+        background:rgba(18,22,16,.55); text-align:center; padding:20px;
+      }
+      .banner.show{ display:flex; }
+      .banner .card{
+        background:var(--panel2); color:var(--ink); border-radius:14px; padding:26px 30px;
+        max-width:420px; box-shadow:0 10px 40px rgba(0,0,0,.35);
+      }
+      .banner h2{ margin:0 0 8px; font-size:1.7rem; }
+      .banner p{ margin:0 0 16px; color:var(--ink-dim); font-size:.92rem; line-height:1.6; }
+      /* ---------- Controls ---------- */
+      .controls{
+        display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; margin-top:12px;
+      }
+      .tools{ display:flex; gap:8px; flex-wrap:wrap; }
+      .tool{
+        appearance:none; border:1.5px solid var(--line); background:var(--panel); color:var(--ink);
+        border-radius:10px; padding:8px 14px; cursor:pointer; text-align:left; line-height:1.25;
+        min-width:104px;
+      }
+      .tool .t-name{ font-weight:700; font-size:.98rem; display:block; }
+      .tool .t-sub{ font-size:.72rem; color:var(--ink-dim); display:block; }
+      .tool[aria-pressed="true"]{ border-color:var(--accent); background:var(--panel2); box-shadow:inset 0 0 0 1.5px var(--accent); }
+      .tool:focus-visible, .btn:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+      .spacer{ flex:1; }
+      .sysbtns{ display:flex; gap:8px; flex-wrap:wrap; }
+      .btn{
+        appearance:none; border:1.5px solid var(--line); background:var(--panel); color:var(--ink);
+        border-radius:10px; padding:8px 14px; cursor:pointer; font-size:.92rem; font-weight:600;
+      }
+      .btn[aria-pressed="true"]{ border-color:var(--accent); box-shadow:inset 0 0 0 1.5px var(--accent); background:var(--panel2); }
+      .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+      /* ---------- Info ---------- */
+      .info{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+      @media (max-width:640px){ .info{ grid-template-columns:1fr; } }
+      .panel{
+        background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; box-shadow:var(--shadow);
+      }
+      .panel h3{ margin:0 0 6px; font-size:.92rem; }
+      .panel p, .panel li{ font-size:.85rem; line-height:1.65; color:var(--ink-dim); }
+      .panel p{ margin:0; }
+      .panel ol{ margin:0; padding-left:1.25em; }
+      #log{ list-style:none; margin:0; padding:0; font-size:.84rem; line-height:1.7; color:var(--ink-dim); min-height:5.1em; }
+      /* ---------- 資源グラフ ---------- */
+      .info .chart-panel{ grid-column:1 / -1; }
+      #chartSvg{ width:100%; height:auto; display:block; margin-top:4px; }
+      #chartSvg text{ fill:var(--ink-dim); font-size:11px; font-variant-numeric:tabular-nums; }
+      #chartSvg .grid{ stroke:var(--line); stroke-width:1; }
+      .legend{ display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:8px; font-size:.82rem; color:var(--ink-dim); }
+      .legend .sw{ display:inline-block; width:14px; height:4px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+      .legend b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+      .flash{ animation:flash .35s ease; }
+      @keyframes flash{ 0%{ filter:brightness(1.6); } 100%{ filter:none; } }
+      @media (prefers-reduced-motion: reduce){ .manabar>div{ transition:none; } .flash{ animation:none; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- HUD -->
+      <div class="hud">
+        <div class="side-box" aria-label="村の様子">
+          <div class="name"><span class="dot"></span>あなたの村</div>
+          <div class="nums">人口 <b id="popNum">0</b> ／ 集落 <b id="setNum">0</b> ／ 歩く人 <b id="walNum">0</b>（上限<b id="capNum">0</b>）</div>
+          <div class="jobs">
+            <span class="job-chip farm">農民 <span id="jobFarm">0</span></span>
+            <span class="job-chip eng">土木 <span id="jobEng">0</span></span>
+          </div>
+        </div>
+        <div class="mid-box">
+          <div class="clock" id="clock">0:00</div>
+          <div class="judge">敵はいない。村の発展を見守ろう</div>
+          <div class="mana-row">
+            <span class="lbl">マナ</span>
+            <div class="manabar" id="manaBarWrap"><div id="manaBar" style="width:35%"></div></div>
+            <span class="mana-num"><b id="manaNum">0</b> / 200</span>
+          </div>
+        </div>
+        <div class="side-box" aria-label="資源">
+          <div class="name">資源</div>
+          <div class="nums">食料 <b id="foodNum">0</b> ／ 木材 <b id="woodNum">0</b></div>
+          <div class="nums">農地 <b id="farmNum">0</b>（備蓄可 <b id="farmSupNum">0</b>）／ 橋 <b id="bridgeNum">0</b> ／ 森 <b id="forestNum">0</b> ／ 伐採地 <b id="cutNum">0</b></div>
+        </div>
+      </div>
+
+      <!-- Board -->
+      <div class="board-wrap" id="boardWrap">
+        <canvas id="board" aria-label="地形マップ。マスをクリックすると選択中の地形に変えられます"></canvas>
+        <div class="banner" id="banner">
+          <div class="card">
+            <h2 id="bannerTitle">村は滅びてしまった</h2>
+            <p id="bannerText"></p>
+            <button class="btn primary" id="againBtn" type="button">新しい村をつくる</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <div class="tools" role="group" aria-label="神の地形変更">
+          <button class="tool" type="button" data-terr="1" aria-pressed="true">
+            <span class="t-name">🌱 平野にする</span><span class="t-sub">森から マナ6 ／ 水から マナ10</span>
+          </button>
+          <button class="tool" type="button" data-terr="3" aria-pressed="false">
+            <span class="t-name">🌲 森にする</span><span class="t-sub">平野・農地から マナ6</span>
+          </button>
+          <button class="tool" type="button" data-terr="0" aria-pressed="false">
+            <span class="t-name">💧 水にする</span><span class="t-sub">陸から マナ10（農地と灌漑の水源）</span>
+          </button>
+          <button class="tool" type="button" data-terr="4" aria-pressed="false">
+            <span class="t-name">⛰ 山にする</span><span class="t-sub">作る マナ25 ／ 崩す マナ35</span>
+          </button>
+        </div>
+        <div class="spacer"></div>
+        <div class="sysbtns">
+          <button class="btn" type="button" id="zoomBtn" aria-pressed="false" title="盤面の表示倍率を切り替える">3倍に拡大</button>
+          <button class="btn" type="button" id="rotLBtn" title="視点を左へ90°回転（Qキー）">↺ 左回転</button>
+          <button class="btn" type="button" id="rotRBtn" title="視点を右へ90°回転（Eキー）">↻ 右回転</button>
+          <button class="btn" type="button" id="pauseBtn" aria-pressed="false">一時停止</button>
+          <button class="btn" type="button" id="speedBtn" aria-pressed="false">速度 ×1</button>
+          <button class="btn" type="button" id="restartBtn">はじめから</button>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="info">
+        <section class="panel">
+          <h3>あそびかた</h3>
+          <ol>
+            <li>神（あなた）にできるのは<b>地形を変えることだけ</b>。平野・森・水・山のボタンを選んでマスをクリックすると、マナを払ってその地形に変わる（ドラッグでもOK）。山だけは作るのも崩すのも高くつく。</li>
+            <li>地形は5種類：<b>平野・農地・森・水・山</b>。<b>山と水には入れない</b>（橋のある水だけ渡れる）。建物のあるマスを変えると建物は崩れるので注意。伐採された森は一時的に茶色い<b>伐採地</b>になる。</li>
+            <li>人は<b>建物から生まれる</b>。生まれるとき、周囲の地形で職業が決まる：森の近くなら<b>土木</b>、それ以外は<b>農民</b>になりやすい（漁民はいない）。頭上のバッジと服の色で見分けられる。</li>
+            <li><b>農民</b>が農地にできるのは、<b>建物に隣接する平野と森</b>。水辺の平野はそのまま開墾でき、水辺から離れていても水から3マス以内なら<b>灌漑</b>して農地にできる（水辺より時間はかかる）。建物に隣接する<b>森</b>は、伐採しながら開墾して農地にでき、伐った木は<b>木材</b>になる（森の開墾は一番時間がかかる）。農地で働くと<b>食料</b>が作れるが、<b>建物に隣接していない農地は備蓄できない</b>（食料にならず、備蓄先を失った農地はやがて平野に戻る）。</li>
+            <li><b>土木</b>は森を<b>伐採</b>して<b>木材</b>を得る。伐採した跡は茶色い<b>伐採地</b>になり、<b>約50秒で森（緑）に戻る</b>。戻る前に建物を建てたり農地にしたりすれば、そのまま使える。木材に余裕があると、水の向こうに陸がある場所へ<b>橋</b>も架ける。</li>
+            <li>食料は人口の維持にも消費される。<b>余れば人が生まれて人口が増え</b>、尽きたまま時間が経つと村人が倒れ、建物も痩せていく。</li>
+            <li>建物は <b>小屋→家→豪邸→お城</b> と育つ。各建物が備蓄できる<b>隣接農地には上限</b>がある：<b>小屋は2マス、家は4マス、豪邸は8マス、お城は16マス</b>。隣接農地が上限まで揃うと次の段階へ成長し、上限も増える。農地は建物に隣接する範囲でしか増えないので、農地だけが無限に広がることはない。農地を増やしたければ、集落そのものを増やして大きく育てる必要がある。</li>
+            <li>歩く人は<b>人口の1/8</b>まで（序盤は最低3人）。それを超えると近くの仲間と<b>合体</b>して1人になり、仕事の手際が良くなる（頭上に金のバッジ＝強さ）。</li>
+            <li>水を増やせば農地と灌漑の水源は増えるが土地が減り、森を増やせば木材は増えるが建てる場所が減る。どんな地形の村にするかは神の腕の見せどころ。</li>
+          </ol>
+        </section>
+        <section class="panel">
+          <h3>村の出来事</h3>
+          <ul id="log" aria-live="polite"></ul>
+        </section>
+        <section class="panel chart-panel">
+          <h3>資源の推移</h3>
+          <svg id="chartSvg" viewBox="0 0 640 220" role="img" aria-label="食料・木材・人口・農地の推移グラフ"></svg>
+          <div class="legend" id="chartLegend"></div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+    /* ================= 基本設定 ================= */
+    var W = 45, H = 45;
+    var START_X = 22, START_Y = 22; // 村の始まる場所（マップ中央）
+    var WATER = 0, PLAIN = 1, FARM = 2, FOREST = 3, MOUNTAIN = 4, CUT = 5;
+    var TERR_NAME = ["水", "平野", "農地", "森", "山", "伐採地"];
+    var MANA_MAX = 200;
+    var BRIDGE_WOOD = 4;                       // 橋1つに要る木材
+    /* 集落レベル：1=小屋(1マス) 2=家(1マス) 3=豪邸(2×2) 4=お城(3×3) */
+    var POP = [0, 3, 7, 18, 40];               // レベルごとの人口
+    var BIRTH_T = [0, 9, 6.5, 4.5, 3];          // 建物から人が生まれる間隔（秒）：大きい建物ほど短い
+    var FARM_CAP = [0, 2, 4, 8, 16];            // 建物が備蓄できる隣接農地の上限（index=レベル：小屋2・家4・豪邸8・お城16）。上限まで揃うと次の段階へ成長し、上限も増える
+    var REGROW_T = 50;                          // 伐採地が森に戻るまでの時間（秒）
+    var LV_NAME = ["", "小屋", "家", "豪邸", "お城"];
+    var FOUND_GAP = 4;                          // 新規建基に必要な、既存建物からの最低間隔（マス）
+    var MERGE_RANGE = 4;                        // 成長時に統合できる周囲の建物までの距離（マス）
+    var MILESTONES = [50, 100, 150, 250, 400, 600];
+    function footSize(level) { return level <= 2 ? 1 : (level === 3 ? 2 : 3); }
+    var idx = function (x, y) { return y * W + x; };
+    var inB = function (x, y) { return x >= 0 && y >= 0 && x < W && y < H; };
+    var clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };
+    var DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]];
+    var DIRS4 = [[1,0],[-1,0],[0,1],[0,-1]];
+    function hash2(x, y) { // マスごとの決定的な疑似乱数（色や木の位置のばらつき用）
+      var n = (x * 374761393 + y * 668265263) | 0;
+      n = Math.imul(n ^ (n >>> 13), 1274126177);
+      return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+    }
+
+    /* ================= 状態 ================= */
+    var terr, regrow, bridges, settlements, walkers, effects;
+    var smokes = [], birds = [], smokeTimer = 0, birdTimer = 6;
+    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var food = 40, wood = 15, mana = 70;
+    var toolTarget = PLAIN;
+    var zoom = 1, lastPtr = null;
+    var rot = 0; // 視点の回転（0..3、90°刻み）※見た目だけの変換
+    var paused = false, speed = 1, gameOver = false;
+    var elapsed = 0, started = false, starveT = 0, milestoneIdx = 0, foundCdT = 0;
+    var resHist = [], sampleAcc = 0, sampleInt = 2; // 資源グラフの記録（sampleInt 秒ごとに1点）
+
+    var canvas = document.getElementById("board");
+    var ctx = canvas.getContext("2d");
+    /* 地形は静的レイヤーに描いてキャッシュする（地形が変わったときだけ描き直す）。
+       解像度は CSS ピクセル等倍に抑え、建物や人の鮮明さを保ちつつ軽くする */
+    var terrainLayer = document.createElement("canvas");
+    var terrainDirty = true;
+    var tileW = 30, tileH = 15, originX = 0, originY = 0;
+    var hover = null;
+
+    /* ================= 地形生成 ================= */
+    function blob(cx, cy, r, type, fill) {
+      var R = Math.ceil(r);
+      for (var y = cy - R; y <= cy + R; y++) for (var x = cx - R; x <= cx + R; x++) {
+        if (!inB(x, y)) continue;
+        var d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d <= r && Math.random() < fill * (1 - d / (r + 0.6)) + 0.25) terr[idx(x, y)] = type;
+      }
+    }
+    function genTerrain() {
+      terr = new Uint8Array(W * H);
+      regrow = new Float32Array(W * H);
+      for (var i = 0; i < W * H; i++) terr[i] = PLAIN;
+      bridges = new Set();
+      // 森の群生（平野の割合を抑えるため、群生の数も大きさも多めにする）
+      var fb = 28 + Math.floor(Math.random() * 9);
+      for (var f = 0; f < fb; f++) blob(2 + Math.floor(Math.random() * (W - 4)), 2 + Math.floor(Math.random() * (H - 4)), 2.1 + Math.random() * 2.5, FOREST, 0.97);
+      // 山の連なり
+      var mb = 7 + Math.floor(Math.random() * 4);
+      for (var m = 0; m < mb; m++) blob(3 + Math.floor(Math.random() * (W - 6)), 3 + Math.floor(Math.random() * (H - 6)), 1.4 + Math.random() * 1.9, MOUNTAIN, 0.92);
+      // 湖
+      var lb = 7 + Math.floor(Math.random() * 5);
+      for (var l = 0; l < lb; l++) blob(3 + Math.floor(Math.random() * (W - 6)), 3 + Math.floor(Math.random() * (H - 6)), 1.5 + Math.random() * 2.0, WATER, 0.97);
+      // 川（7割5分の確率で、端から端へ蛇行する）
+      if (Math.random() < 0.75) {
+        var vertical = Math.random() < 0.5;
+        var pos = 6 + Math.floor(Math.random() * (W - 12));
+        var len = vertical ? H : W;
+        for (var s = 0; s < len; s++) {
+          var cells = vertical ? [[pos, s]] : [[s, pos]];
+          if (Math.random() < 0.3) cells.push(vertical ? [pos + 1, s] : [s, pos + 1]);
+          for (var c = 0; c < cells.length; c++) if (inB(cells[c][0], cells[c][1])) terr[idx(cells[c][0], cells[c][1])] = WATER;
+          pos = clamp(pos + Math.floor(Math.random() * 3) - 1, 1, (vertical ? W : H) - 2);
+        }
+      }
+      // 村の開始地点の周りは平野を保証する
+      for (var y2 = START_Y - 4; y2 <= START_Y + 4; y2++) for (var x2 = START_X - 4; x2 <= START_X + 4; x2++)
+        if (inB(x2, y2)) terr[idx(x2, y2)] = PLAIN;
+      // 近くに水がなければ小さな池を掘る（農地と灌漑のため）
+      var waterNear = 0, forestNear = 0;
+      for (var y3 = START_Y - 9; y3 <= START_Y + 9; y3++) for (var x3 = START_X - 9; x3 <= START_X + 9; x3++) {
+        if (!inB(x3, y3)) continue;
+        // 水は集落の近く（4マス以内）にないと、建物に隣接するマスを農地にできず建物が育たない
+        if (Math.max(Math.abs(x3 - START_X), Math.abs(y3 - START_Y)) <= 4 && terr[idx(x3, y3)] === WATER) waterNear++;
+        if (terr[idx(x3, y3)] === FOREST) forestNear++;
+      }
+      if (waterNear < 2) { // 集落の2マス先に小さな池を保証する：建物に隣接するマスが水辺になり、最初の農地が作れる
+        var pond = [[START_X + 2, START_Y + 1], [START_X + 3, START_Y + 1], [START_X + 3, START_Y + 2]];
+        for (var pi = 0; pi < pond.length; pi++) if (inB(pond[pi][0], pond[pi][1])) terr[idx(pond[pi][0], pond[pi][1])] = WATER;
+      }
+      if (forestNear < 4) blob(START_X - 7, START_Y - 4, 2.2, FOREST, 1);
+    }
+    function tAt(x, y) { return inB(x, y) ? terr[idx(x, y)] : WATER; }
+    function hasBridge(x, y) { return bridges.has(idx(x, y)); }
+    function passable(x, y) {
+      if (!inB(x, y)) return false;
+      var t = terr[idx(x, y)];
+      return t === PLAIN || t === FARM || t === FOREST || t === CUT || (t === WATER && hasBridge(x, y));
+    }
+    function bridgeNear(x, y, r) { // 半径r以内に既存の橋があるか（橋の乱立を防ぐ）
+      var found = false;
+      bridges.forEach(function (b) {
+        var bx = b % W, by = Math.floor(b / W);
+        if (Math.max(Math.abs(bx - x), Math.abs(by - y)) <= r) found = true;
+      });
+      return found;
+    }
+    function adjWater(x, y) { // 4方向のどこかが水か（橋のある水も水として数える＝農地の水源）
+      for (var i = 0; i < 4; i++) if (tAt(x + DIRS4[i][0], y + DIRS4[i][1]) === WATER) return true;
+      return false;
+    }
+    function adjFarm(x, y) { // 4方向のどこかが農地か
+      for (var i = 0; i < 4; i++) if (tAt(x + DIRS4[i][0], y + DIRS4[i][1]) === FARM) return true;
+      return false;
+    }
+    function nearWater(x, y, r) { // 水から r マス以内（チェビシェフ距離）にあるか
+      for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++)
+        if (tAt(x + dx, y + dy) === WATER) return true;
+      return false;
+    }
+    function irrigable(x, y) { // 灌漑できる土地：水から3マス以内（水辺でなくても、水を引いて農地にできる）
+      return nearWater(x, y, 3);
+    }
+    function adjacentFarmCount(s) { // 建物に隣接（敷地の周囲1マス、斜め含む）している農地の数。数えられるのはこの隣接農地だけ
+      var cnt = 0;
+      for (var y = s.y - 1; y <= s.y + s.size; y++) for (var x = s.x - 1; x <= s.x + s.size; x++) {
+        if (x >= s.x && x < s.x + s.size && y >= s.y && y < s.y + s.size) continue; // 敷地内は数えない
+        if (tAt(x, y) === FARM) cnt++;
+      }
+      return cnt;
+    }
+    function farmSupportsAt(x, y) { // その農地に隣接する建物（備蓄できる相手）。なければ null
+      var found = null;
+      settlements.forEach(function (s) { if (pointRectDist(x, y, s) === 1) found = s; });
+      return found;
+    }
+    function hasFarmCapacity(x, y) { // (x,y) に隣接する建物のうち、隣接農地が上限に達していないものがあるか（農地を増やせる余地）
+      var ok = false;
+      settlements.forEach(function (s) {
+        if (pointRectDist(x, y, s) === 1 && adjacentFarmCount(s) < FARM_CAP[s.level]) ok = true;
+      });
+      return ok;
+    }
+
+    /* ================= 初期化 ================= */
+    function reset() {
+      genTerrain();
+      terrainDirty = true;
+      settlements = new Map();
+      walkers = []; effects = [];
+      smokes = []; birds = []; smokeTimer = 0; birdTimer = 6;
+      food = 40; wood = 15; mana = 70;
+      resHist = []; sampleAcc = 0; sampleInt = 2;
+      elapsed = 0; gameOver = false; paused = false; started = true;
+      starveT = 0; milestoneIdx = 0;
+      document.getElementById("banner").classList.remove("show");
+      document.getElementById("pauseBtn").setAttribute("aria-pressed", "false");
+      document.getElementById("pauseBtn").textContent = "一時停止";
+      var s = addSettlement(START_X, START_Y);
+      s.buildT = 0; // 最初から完成している
+      var jobs = ["farm", "eng", "farm"];
+      var usedSpots = new Set();
+      for (var i = 0; i < 3; i++) {
+        var spot = findSpawnSpot(START_X, START_Y, usedSpots);
+        if (spot) { usedSpots.add(idx(spot[0], spot[1])); walkers.push(makeWalker(spot[0], spot[1], jobs[i])); }
+      }
+      logEl.innerHTML = "";
+      addLog("新しい村が生まれた。農民と土木が暮らし始める。");
+      addLog("神は地形を変えることしかできない。村の発展を見守ろう。");
+      updateHUD();
+      pushSample(); // グラフの始点を記録する
+    }
+    function findSpawnSpot(cx, cy, used) { // 指定マスの周囲で歩けるマスを1つ探す（used にあるマスは避ける）
+      for (var r = 1; r <= 3; r++)
+        for (var i = 0; i < DIRS.length; i++) {
+          var x = cx + DIRS[i][0] * r, y = cy + DIRS[i][1] * r;
+          if (used && used.has(idx(x, y))) continue;
+          if (passable(x, y) && !settlementAt(x, y)) return [x, y];
+        }
+      return null;
+    }
+    function makeWalker(x, y, job) {
+      var pr = Math.random();
+      return { x: x, y: y, rx: x, ry: y, job: job, target: null, findCd: 0, wait: Math.random() * 2,
+               legPhase: Math.random() * 6.28, prop: pr < 0.3 ? 1 : (pr < 0.55 ? 2 : 0),
+               power: 1, seek: null, swingT: 0, workN: 0, workKey: -1, bKey: -1, bN: 0,
+               ox: (Math.random() * 2 - 1) * 0.16, oy: (Math.random() * 2 - 1) * 0.16,
+               px: -1, py: -1, stuck: 0,
+               face: 1 };
+    }
+    function addSettlement(x, y) {
+      var s = { x: x, y: y, level: 1, size: 1, growT: 0, spawnT: BIRTH_T[1] * (0.6 + Math.random() * 0.4), buildT: 2.6, smokeX: null, smokeY: 0 };
+      settlements.set(idx(x, y), s);
+      terrainDirty = true; // 敷地の下の木や花を描かないよう地形レイヤーを更新する
+      return s;
+    }
+    /* ---- 占有マス（フットプリント）まわりのヘルパー ---- */
+    function settlementAt(x, y) {
+      var found = null;
+      settlements.forEach(function (s) {
+        if (x >= s.x && x < s.x + s.size && y >= s.y && y < s.y + s.size) found = s;
+      });
+      return found;
+    }
+    function pointRectDist(x, y, s) {
+      var dx = Math.max(s.x - x, x - (s.x + s.size - 1), 0);
+      var dy = Math.max(s.y - y, y - (s.y + s.size - 1), 0);
+      return Math.max(dx, dy);
+    }
+    function rectRectDist(a, b) {
+      var dx = Math.max(a.x - (b.x + b.size - 1), b.x - (a.x + a.size - 1), 0);
+      var dy = Math.max(a.y - (b.y + b.size - 1), b.y - (a.y + a.size - 1), 0);
+      return Math.max(dx, dy);
+    }
+    function clearance(x, y) {
+      var best = 99;
+      settlements.forEach(function (s) { var d = pointRectDist(x, y, s); if (d < best) best = d; });
+      return best;
+    }
+    function removeSettlement(s) {
+      settlements.forEach(function (v, k) { if (v === s) settlements.delete(k); });
+      terrainDirty = true;
+    }
+    function centerTile(s) {
+      var o = Math.floor((s.size - 1) / 2);
+      return [s.x + o, s.y + o];
+    }
+
+    /* ================= 集計 ================= */
+    function stats() {
+      var set = 0, pop = 0, jobs = { farm: 0, eng: 0 };
+      settlements.forEach(function (s) { set++; pop += POP[s.level]; });
+      for (var i = 0; i < walkers.length; i++) { pop += 1; jobs[walkers[i].job]++; }
+      return { set: set, pop: pop, wal: walkers.length, jobs: jobs };
+    }
+    function countTerr(t) {
+      var c = 0;
+      for (var i = 0; i < W * H; i++) if (terr[i] === t) c++;
+      return c;
+    }
+    function countSupportedFarms() { // 備蓄できる農地（建物に隣接している農地）の数
+      var c = 0;
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++)
+        if (terr[idx(x, y)] === FARM && farmSupportsAt(x, y)) c++;
+      return c;
+    }
+    function walkerCap() { // 歩く人の上限＝人口の1/8（序盤に職業が消えないよう最低3人）
+      var st = stats();
+      if (st.set === 0) return 0;
+      return Math.max(3, Math.floor(st.pop / 8));
+    }
+    /* 出生時の職業：建物の周囲の地形で決まる（森の近く→土木、それ以外→農民）。漁民はいない */
+    function pickJob(sx, sy) {
+      // 不足している職業がいれば、まずそれを補充する（村の機能が止まらないように）
+      var js = stats().jobs;
+      if (js.eng === 0) return "eng";
+      if (js.farm === 0) return "farm";
+      var wForest = 1.2, wFarm = 3.0;
+      for (var y = sy - 5; y <= sy + 5; y++) for (var x = sx - 5; x <= sx + 5; x++) {
+        var t = tAt(x, y);
+        if (t === FOREST) wForest += 0.22;
+        else if (t === FARM) wFarm += 1.0;
+        else if (t === WATER) wFarm += 0.15; // 水は農地・灌漑の源なので農民寄りになる
+      }
+      // 食料の余り具合で配分を調整する（不足なら農民、余剰なら土木へ）
+      var fr = food / Math.max(1, stats().pop);
+      if (fr < 0.5) { wFarm *= 2.2; wForest *= 0.4; }
+      else if (fr > 2.0) { wForest *= 2.5; wFarm *= 0.5; }
+      return Math.random() * (wForest + wFarm) < wForest ? "eng" : "farm";
+    }
+
+    /* ================= 人の上限と合体 ================= */
+    function assignMerges() { // 上限を超えた分だけ、弱い人から順に近くの仲間への合体に向かわせる
+      var mine = [], i, j, w, o;
+      for (i = 0; i < walkers.length; i++) mine.push(walkers[i]);
+      for (i = 0; i < mine.length; i++) mine[i].seek = null;
+      var excess = mine.length - walkerCap();
+      if (excess <= 0) return;
+      var jobCounts = { farm: 0, eng: 0 };
+      for (i = 0; i < mine.length; i++) jobCounts[mine[i].job]++;
+      // その職業の最後の1人は合体で消えないよう候補から外す
+      var sorted = mine.slice().sort(function (a, b) { return a.power - b.power; })
+        .filter(function (w) { return jobCounts[w.job] > 1; });
+      for (i = 0; i < Math.min(excess, sorted.length); i++) {
+        w = sorted[i];
+        var best = null, bd = 1e9;
+        for (j = 0; j < mine.length; j++) {
+          o = mine[j];
+          if (o === w) continue;
+          var d = Math.max(Math.abs(o.x - w.x), Math.abs(o.y - w.y));
+          if (d < bd) { bd = d; best = o; }
+        }
+        w.seek = best;
+      }
+    }
+    function mergeWalkers(surv, abs) { // abs が surv に合体する：手際（power）が合算され、体力…ではなく仕事の効率が上がる
+      surv.power += abs.power;
+      surv.seek = null;
+      effects.push({ x: surv.x, y: surv.y, t: 0, merge: true });
+      if (Math.random() < 0.55) addLog("村人が合体して手際が良くなった（強さ" + surv.power + "）。");
+    }
+
+    /* ================= ログ ================= */
+    var logEl = document.getElementById("log");
+    function addLog(html) {
+      var li = document.createElement("li");
+      li.innerHTML = html;
+      logEl.insertBefore(li, logEl.firstChild);
+      while (logEl.children.length > 5) logEl.removeChild(logEl.lastChild);
+    }
+
+    /* ================= 神の地形変更 ================= */
+    function convCost(from, to) { // 地形変更のマナ費用：山は作るのも崩すのも高い
+      if (from === to) return 0;
+      if (to === MOUNTAIN) return 25;
+      if (from === MOUNTAIN) return 35;
+      if (to === WATER || from === WATER) return 10;
+      return 6; // 平野⇔森、農地→森 など
+    }
+    function applyConvert(x, y) {
+      if (!inB(x, y)) return false;
+      var i = idx(x, y), from = terr[i];
+      if (from === toolTarget) return false;
+      var cost = convCost(from, toolTarget);
+      if (mana < cost) { flashMana(); return false; }
+      mana -= cost;
+      terr[i] = toolTarget;
+      terrainDirty = true;
+      regrow[i] = 0; // 神が変えたマスは伐採地の再生タイマーを止める
+      if (from === WATER || toolTarget !== WATER) bridges.delete(i);
+      // 占有マスの地形が変わると建物は崩れる
+      var s = settlementAt(x, y);
+      if (s) {
+        removeSettlement(s);
+        addLog(LV_NAME[s.level] + "が地形の変化で崩れた。");
+      }
+      // 入れない地形になったマスにいた人は巻き込まれる
+      if (!passable(x, y)) {
+        for (var k = walkers.length - 1; k >= 0; k--) {
+          if (walkers[k].x === x && walkers[k].y === y) {
+            addLog(toolTarget === WATER ? "村人が水に沈んだ。" : "村人が山に押しつぶされた。");
+            walkers.splice(k, 1);
+          }
+        }
+      }
+      effects.push({ x: x, y: y, t: 0 });
+      return true;
+    }
+
+    /* ================= 村人AI ================= */
+    function workMult(w) { // 合体した人の仕事の効率（power そのままだと強すぎるので緩やかに）
+      return 1 + (w.power - 1) * 0.35;
+    }
+    function foodCritical() { // 食料が危機的に少ないか（このときだけ農民は開墾・灌漑より農地仕事を優先する。それ以外では農地を増やす方を優先する）
+      return food < stats().pop * 0.4 + 4;
+    }
+    function findNearest(x, y, maxR, pred) { // pred(x,y) を満たす一番近いマスをリング状に探す
+      if (pred(x, y)) return [x, y];
+      for (var r = 1; r <= maxR; r++) {
+        var best = null, bd = 1e9;
+        for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          var nx = x + dx, ny = y + dy;
+          if (!inB(nx, ny) || !pred(nx, ny)) continue;
+          var dist = Math.abs(dx) + Math.abs(dy) + hash2(nx, ny) * 1.5;
+          if (dist < bd) { bd = dist; best = [nx, ny]; }
+        }
+        if (best) return best;
+      }
+      return null;
+    }
+    function workHere(w) { // 今いるマスでできる仕事があれば行う。したら true
+      var t = terr[idx(w.x, w.y)], key = idx(w.x, w.y);
+      if (w.workKey !== key) { w.workKey = key; w.workN = 0; }
+      if (w.job === "farm") {
+        if ((t === PLAIN || t === CUT || t === FOREST) && !settlementAt(w.x, w.y)) {
+          // 水辺の土地はそのまま開墾、水辺でない土地は灌漑で農地にする。森は伐採しながら開墾して農地にする。
+          // ただし農地にできるのは建物に隣接し、その建物の隣接農地が上限に達していないマスだけ（農地が無限に広がらないように）
+          var nearW = adjWater(w.x, w.y);
+          var irr = !nearW && irrigable(w.x, w.y);
+          if ((nearW || irr) && hasFarmCapacity(w.x, w.y)) {
+            var need = t === FOREST ? (irr ? 14 : 10) : (irr ? 8 : 4); // 森の開墾と灌漑は手間がかかる（森＋灌漑が一番重い）
+            w.workN++; w.swingT = 0.3;
+            if (w.workN >= need) {
+              var wasForest = t === FOREST;
+              terr[key] = FARM; regrow[key] = 0; w.workN = 0; terrainDirty = true;
+              if (wasForest) wood += 2; // 開墾で伐った木は木材になる
+              effects.push({ x: w.x, y: w.y, t: 0, merge: true });
+              if (Math.random() < 0.35) addLog(wasForest ? "農民が森を開墾して農地にした。" : (irr ? "農民が灌漑して内陸の土地を農地にした。" : "農民が水辺の平野を農地にした。"));
+            }
+            return true;
+          }
+        }
+        if (t === FARM) { // 農地で働いて食料を作る。ただし建物に隣接していない農地は備蓄できないので、ここでは働かない
+          if (!farmSupportsAt(w.x, w.y)) return false;
+          // 食料が危機的でなく、近くに開墾・灌漑・森の開墾ができる土地があれば、農地仕事を離れてそちらへ向かう。
+          // （この離脱がないと、農民全員が既存の農地に張り付いたままになり農地が二度と増えない）
+          if (!foodCritical()) {
+            var ex = findNearest(w.x, w.y, 10, function (x, y) {
+              var tt = terr[idx(x, y)];
+              return (tt === PLAIN || tt === CUT || tt === FOREST) && !settlementAt(x, y) && (adjWater(x, y) || irrigable(x, y)) && hasFarmCapacity(x, y);
+            });
+            if (ex) return false;
+          }
+          food += 0.5 * workMult(w);
+          w.swingT = 0.3;
+          if (Math.random() < 0.06) effects.push({ x: w.x, y: w.y, t: 0, merge: true });
+          return true;
+        }
+      } else if (w.job === "eng") {
+        if (t === FOREST && wood < 60) { // 伐採：森を切って木材を得る。跡は茶色い伐採地になり、一定時間で森に戻る
+          w.workN++; w.swingT = 0.3;
+          if (w.workN >= 5) {
+            terr[key] = CUT; regrow[key] = REGROW_T * (0.85 + Math.random() * 0.3); w.workN = 0; terrainDirty = true;
+            wood += 3;
+            effects.push({ x: w.x, y: w.y, t: 0 });
+            if (Math.random() < 0.3) addLog("土木が森を伐採して木材を得た。跡地はやがて森に戻る。");
+          }
+          return true;
+        }
+        // 橋：水の向こうに陸がある場所に、木材を使って橋を架ける（備蓄に余裕があるときだけ）
+        if (wood >= 16) {
+          for (var d = 0; d < 4; d++) {
+            var wx = w.x + DIRS4[d][0], wy = w.y + DIRS4[d][1];
+            var lx = w.x + DIRS4[d][0] * 2, ly = w.y + DIRS4[d][1] * 2;
+            if (!inB(wx, wy) || !inB(lx, ly)) continue;
+            if (terr[idx(wx, wy)] !== WATER || hasBridge(wx, wy)) continue;
+            if (bridgeNear(wx, wy, 6)) continue; // 近くに橋があれば架けない
+            var lt = terr[idx(lx, ly)];
+            if (lt === WATER || lt === MOUNTAIN) continue;
+            var bk = idx(wx, wy);
+            if (w.bKey !== bk) { w.bKey = bk; w.bN = 0; }
+            w.bN++; w.swingT = 0.3;
+            if (w.bN >= 3) {
+              bridges.add(bk); wood -= BRIDGE_WOOD; w.bN = 0; w.bKey = -1; terrainDirty = true;
+              effects.push({ x: wx, y: wy, t: 0, merge: true });
+              addLog("土木が橋を架けた。");
+            }
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    function tileOccupied(x, y, except) { // 自分以外の誰かがそのマスで働いているか
+      for (var i = 0; i < walkers.length; i++) {
+        var o = walkers[i];
+        if (o !== except && o.x === x && o.y === y) return true;
+      }
+      return false;
+    }
+    function jobTarget(w) { // 職業ごとの行き先（同じマスに重ならないよう空きマスを優先する）
+      if (w.job === "farm") {
+        // 開墾できる水辺の平野と、灌漑できる内陸の土地を探す。
+        // まず一番近い集落の周囲を優先する（遠くの水辺ばかり開墾すると、集落の周囲の
+        // 農地が増えず建物が育たない。集落の近くに開ける土地がなければ自分の周囲を探す）
+        var isOpen = function (x, y) { // 開墾できる土地：建物に隣接し上限に余地がある水辺の平野だけ
+          var tt = terr[idx(x, y)];
+          return (tt === PLAIN || tt === CUT) && adjWater(x, y) && !settlementAt(x, y) && hasFarmCapacity(x, y);
+        };
+        var isIrr = function (x, y) { // 灌漑できる内陸の土地（同じく建物に隣接し上限に余地があるものだけ）
+          var tt = terr[idx(x, y)];
+          return (tt === PLAIN || tt === CUT) && irrigable(x, y) && !settlementAt(x, y) && hasFarmCapacity(x, y);
+        };
+        var isClear = function (x, y) { // 開墾できる森：建物に隣接し上限に余地があり、水辺か灌漑の範囲内にある森
+          var tt = terr[idx(x, y)];
+          return tt === FOREST && (adjWater(x, y) || irrigable(x, y)) && !settlementAt(x, y) && hasFarmCapacity(x, y);
+        };
+        var wp = null, ip = null, cp = null, home = null, hd = 1e9;
+        settlements.forEach(function (s) {
+          var c = centerTile(s);
+          var d = Math.max(Math.abs(c[0] - w.x), Math.abs(c[1] - w.y));
+          if (d < hd) { hd = d; home = c; }
+        });
+        if (home) {
+          wp = findNearest(home[0], home[1], 8, isOpen);
+          if (!wp) ip = findNearest(home[0], home[1], 8, isIrr);
+          if (!wp && !ip) cp = findNearest(home[0], home[1], 8, isClear);
+        }
+        if (!wp && !ip && !cp) {
+          wp = findNearest(w.x, w.y, 16, isOpen);
+          if (!wp) ip = findNearest(w.x, w.y, 16, isIrr);
+          if (!wp && !ip) cp = findNearest(w.x, w.y, 16, isClear);
+        }
+        var exp = wp || ip || cp;
+        // 農地の広さが食料生産の土台なので、食料が危機的でない限り、既存の農地で働くより
+        // 開墾・灌漑・森の開墾を優先して農地そのものを増やす
+        if (exp && !foodCritical()) return exp;
+        var f = findNearest(w.x, w.y, 16, function (x, y) { return terr[idx(x, y)] === FARM && farmSupportsAt(x, y) && !tileOccupied(x, y, w); });
+        if (f) return f;
+        if (exp) return exp;
+        return findNearest(w.x, w.y, 16, function (x, y) { return terr[idx(x, y)] === FARM && farmSupportsAt(x, y); });
+      }
+      // 土木：木材に余裕があれば橋の候補地へ向かうこともある。それ以外は森へ
+      if (wood >= 24 && Math.random() < 0.5) {
+        var bs = findNearest(w.x, w.y, 14, function (x, y) {
+          if (!passable(x, y) || terr[idx(x, y)] === WATER) return false;
+          for (var d = 0; d < 4; d++) {
+            var wx = x + DIRS4[d][0], wy = y + DIRS4[d][1];
+            var lx = x + DIRS4[d][0] * 2, ly = y + DIRS4[d][1] * 2;
+            if (!inB(wx, wy) || !inB(lx, ly)) continue;
+            if (terr[idx(wx, wy)] !== WATER || hasBridge(wx, wy)) continue;
+            if (bridgeNear(wx, wy, 6)) continue;
+            var lt = terr[idx(lx, ly)];
+            if (lt !== WATER && lt !== MOUNTAIN) return true;
+          }
+          return false;
+        });
+        if (bs) return bs;
+      }
+      if (wood < 60) { // 備蓄が十分なときは森へは行かず、水辺で橋の機会を待つ
+        var fo = findNearest(w.x, w.y, 18, function (x, y) { return terr[idx(x, y)] === FOREST; });
+        if (fo) return fo;
+      }
+      return findNearest(w.x, w.y, 12, function (x, y) {
+        return terr[idx(x, y)] !== WATER && passable(x, y) && adjWater(x, y);
+      });
+    }
+    function walkerStep(w) {
+      if (!passable(w.x, w.y)) return false; // 水や山に取り残された
+      // 立ち往生対策：同じマスに留まり続けたら目標を捨てて彷徨う
+      if (w.px === w.x && w.py === w.y) { w.stuck = (w.stuck || 0) + 1; } else w.stuck = 0;
+      w.px = w.x; w.py = w.y;
+      if (w.stuck >= 6 && w.target) { w.target = null; w.findCd = 5; w.stuck = 0; }
+      // 合体：上限を超えた人は近くの仲間に近づき、隣り合ったら合体する
+      if (w.seek) {
+        if (walkers.indexOf(w.seek) < 0) w.seek = null;
+        else if (Math.max(Math.abs(w.seek.x - w.x), Math.abs(w.seek.y - w.y)) <= 1) {
+          mergeWalkers(w.seek, w);
+          return false; // 自分は吸収されて消える
+        }
+      }
+      // ときどき立ち止まって休む
+      if (w.wait > 0) { w.wait -= 0.34; return true; }
+      // 平野に新しい集落を建てる（食料に余裕があり、働き手が残るときだけ。
+      // 既存の建物からは広めに間隔を空け、近くに水がある場所だけに建てる
+      // ――水が遠いと隣接農地を作れず、その集落は育たないため）
+      if (!w.seek && (terr[idx(w.x, w.y)] === PLAIN || terr[idx(w.x, w.y)] === CUT) && !settlementAt(w.x, w.y) && clearance(w.x, w.y) >= FOUND_GAP && nearWater(w.x, w.y, 4)) {
+        if (food >= 20 && walkers.length >= 4 && foundCdT <= 0 && Math.random() < 0.04) {
+          addSettlement(w.x, w.y);
+          regrow[idx(w.x, w.y)] = 0; // 建物が建った伐採地は森に戻らない
+          foundCdT = 15; // 次の新設まで少し間を空ける
+          addLog("村人が新しい集落を建てた。");
+          return false; // 建てた人は住民になる
+        }
+      }
+      // 今いるマスで仕事ができるならする
+      if (!w.seek && workHere(w)) return true;
+      // 移動先を決める
+      if (w.seek) w.target = [w.seek.x, w.seek.y];
+      else if (!w.target || (w.target[0] === w.x && w.target[1] === w.y)) {
+        if (w.findCd > 0) { w.findCd--; w.target = null; }
+        else { w.target = jobTarget(w); w.findCd = 3; }
+      }
+      var opts = [];
+      for (var d = 0; d < DIRS.length; d++) {
+        var nx = w.x + DIRS[d][0], ny = w.y + DIRS[d][1];
+        if (passable(nx, ny)) opts.push([nx, ny]);
+      }
+      if (!opts.length) return true;
+      var pick;
+      if (w.target && Math.random() < (w.seek ? 0.95 : 0.8)) {
+        var bd = 1e9;
+        for (var k = 0; k < opts.length; k++) {
+          var dist = Math.abs(opts[k][0] - w.target[0]) + Math.abs(opts[k][1] - w.target[1]);
+          if (dist < bd) { bd = dist; pick = opts[k]; }
+        }
+      } else {
+        pick = opts[Math.floor(Math.random() * opts.length)];
+      }
+      w.x = pick[0]; w.y = pick[1];
+      if (Math.random() < 0.05) w.wait = 0.7 + Math.random() * 1.6; // たまに休憩する
+      return true;
+    }
+
+    /* ================= 集落の成長・繁殖 ================= */
+    /* 成長先の敷地を探す：新しい占有範囲がすっぽり収まる平野・農地の一続きの土地。
+       味方の建物が敷地内や周囲 MERGE_RANGE 以内にあれば統合対象として数える */
+    function findGrowBlock(s, newSize) {
+      for (var ay = s.y - (newSize - s.size); ay <= s.y; ay++) {
+        for (var ax = s.x - (newSize - s.size); ax <= s.x; ax++) {
+          var ok = true;
+          for (var y = ay; y < ay + newSize && ok; y++) for (var x = ax; x < ax + newSize && ok; x++) {
+            if (!inB(x, y)) { ok = false; break; }
+            var t = terr[idx(x, y)];
+            if (t !== PLAIN && t !== FARM && t !== CUT) { ok = false; break; }
+            var o = settlementAt(x, y);
+            if (o && o !== s) ok = false;
+          }
+          if (ok) return [ax, ay];
+        }
+      }
+      return null;
+    }
+    function levelUp(s, block) {
+      if (block) { s.x = block[0]; s.y = block[1]; }
+      terrainDirty = true; // 敷地が広がると下の木や花の描画が変わる
+      food = Math.max(0, food - 8); // 成長のお祝いに食料を振る舞う
+      s.level++;
+      s.size = footSize(s.level);
+      s.x = clamp(s.x, 0, W - s.size); s.y = clamp(s.y, 0, H - s.size); // 敷地が盤外にはみ出さないように
+      s.buildT = 2.6; // 成長したら建て直し（足場＋建ち上がり）
+      var merged = 0;
+      if (s.level >= 3) { // 豪邸・お城への成長時は周囲の建物を統合する
+        var list = [];
+        settlements.forEach(function (o) { list.push(o); });
+        for (var i = 0; i < list.length; i++) {
+          var o = list[i];
+          if (o !== s && rectRectDist(s, o) <= MERGE_RANGE) {
+            removeSettlement(o);
+            merged++;
+          }
+        }
+      }
+      if (merged > 0) addLog("集落が周囲の建物" + merged + "件を統合して" + LV_NAME[s.level] + "になった。");
+      else addLog("集落が" + LV_NAME[s.level] + "に成長した。");
+    }
+    function settlementStep(s, dt) {
+      if (s.buildT > 0) s.buildT -= dt;
+      s.growT += dt;
+      if (s.growT >= 10) {
+        s.growT = 0;
+        // 成長は建物に隣接する農地の数で決まる：隣接農地が今の段階の上限（小屋2・家4・豪邸8）まで揃うと
+        // 次の段階へ育ち、備蓄できる隣接農地の上限も増える（お城は上限16で最大）
+        if (food >= 8 && s.level < 4 && adjacentFarmCount(s) >= FARM_CAP[s.level]) {
+          var ns = footSize(s.level + 1);
+          var blk = ns > s.size ? findGrowBlock(s, ns) : null;
+          levelUp(s, blk); // 敷地がぴったり確保できなくても、農地が足りていれば育つ
+        }
+      }
+      // 人は建物から生まれる：食料に余裕があるときだけ。
+      // 大きな建物ほど間隔が短い。歩く人の上限は人口の1/8。
+      s.spawnT -= dt;
+      if (s.spawnT <= 0) {
+        var st = stats();
+        var missingJob = st.jobs.eng === 0 || st.jobs.farm === 0;
+        // 通常の出生は上限まで。職業が欠けているときは上限+1まで救済出生する
+        var canBirth = food >= 6 && st.wal < walkerCap();
+        var rescueBirth = missingJob && food >= 12 && st.wal <= walkerCap() && st.wal >= 1;
+        if ((canBirth || rescueBirth) && walkers.length < 120) {
+          var c2 = centerTile(s);
+          var spot = findSpawnSpot(c2[0], c2[1]);
+          if (spot) {
+            walkers.push(makeWalker(spot[0], spot[1], pickJob(c2[0], c2[1])));
+            food -= 4;
+            s.spawnT = BIRTH_T[s.level] * (0.85 + Math.random() * 0.3);
+          } else s.spawnT = 1.5;
+        } else {
+          s.spawnT = 1; // 食料不足か上限なら少し待つ
+        }
+      }
+    }
+    function shrinkSettlement(s) { // 食料不足で建物が痩せる
+      var was = LV_NAME[s.level];
+      s.level -= 1;
+      if (s.level <= 0) {
+        removeSettlement(s);
+        addLog(was + "は食料不足で消滅した。");
+      } else {
+        s.size = footSize(s.level);
+        s.buildT = 1.4;
+        addLog(was + "が食料不足で" + LV_NAME[s.level] + "に痩せた。");
+      }
+    }
+
+    /* ================= メインループ ================= */
+    var lastT = 0, stepAcc = 0, hudAcc = 0;
+    function frame(ts) {
+      requestAnimationFrame(frame);
+      if (!lastT) lastT = ts;
+      var dt = Math.min(0.1, (ts - lastT) / 1000); lastT = ts;
+      if (started && !paused && !gameOver) {
+        var gdt = dt * speed;
+        elapsed += gdt;
+        // マナ回復（人口に比例）
+        mana = clamp(mana + gdt * (1.1 + stats().pop * 0.012), 0, MANA_MAX);
+        // 村人ステップ（0.34秒ごと）
+        stepAcc += gdt;
+        if (stepAcc >= 0.34) {
+          stepAcc = 0;
+          if (foundCdT > 0) foundCdT -= 0.34;
+          // 食料の維持消費（人口に比例）。尽きた状態が続くと村が痩せる
+          var stp = stats();
+          food -= stp.pop * 0.022;
+          // 貯蔵の限界：人口×2+30 を超えた食料は少しずつ傷んで減る
+          var capF = stp.pop * 2 + 30;
+          if (food > capF) food -= (food - capF) * 0.03;
+          if (food <= 0) {
+            food = 0;
+            starveT += 0.34;
+            if (starveT >= 5) {
+              starveT = 0;
+              if (walkers.length > 0) {
+                walkers.splice(Math.floor(Math.random() * walkers.length), 1);
+                addLog("食料不足で村人が倒れた…。");
+              } else if (settlements.size > 0) {
+                var arr = []; settlements.forEach(function (s) { arr.push(s); });
+                shrinkSettlement(arr[Math.floor(Math.random() * arr.length)]);
+              }
+            }
+          } else {
+            starveT = Math.max(0, starveT - 0.68);
+          }
+          assignMerges(); // 人口の1/8を超えた人に合体先を割り当てる
+          for (var i = walkers.length - 1; i >= 0; i--) {
+            if (!walkerStep(walkers[i])) walkers.splice(i, 1);
+          }
+          // 備蓄できない農地の放棄：建物に隣接していない農地は備蓄先がないので、平野に戻る
+          // （建物の統合・成長・縮小で隣接関係が崩れた農地が、死んだまま残り続けないように）
+          for (var fi2 = 0; fi2 < W * H; fi2++) {
+            if (terr[fi2] !== FARM) continue;
+            var fx = fi2 % W, fy = Math.floor(fi2 / W);
+            if (!farmSupportsAt(fx, fy)) { terr[fi2] = PLAIN; terrainDirty = true; }
+          }
+          // 伐採地の再生：一定時間（約50秒）が経つと森（緑）に戻る。建物のあるマスは戻らない
+          for (var ri = 0; ri < W * H; ri++) {
+            if (regrow[ri] <= 0) continue;
+            regrow[ri] -= 0.34;
+            if (regrow[ri] <= 0 && terr[ri] === CUT) {
+              var rgx = ri % W, rgy = Math.floor(ri / W);
+              terrainDirty = true;
+              if (settlementAt(rgx, rgy)) terr[ri] = PLAIN;
+              else { terr[ri] = FOREST; effects.push({ x: rgx, y: rgy, t: 0, merge: true }); }
+            }
+          }
+          var list = [];
+          settlements.forEach(function (s) { list.push(s); });
+          for (var j = 0; j < list.length; j++) settlementStep(list[j], 0.34);
+          // 人口マイルストーン
+          var st2 = stats();
+          if (milestoneIdx < MILESTONES.length && st2.pop >= MILESTONES[milestoneIdx]) {
+            addLog("🎉 人口が" + MILESTONES[milestoneIdx] + "人に達した！");
+            milestoneIdx++;
+          }
+          // 滅亡チェック
+          if (settlements.size === 0 && walkers.length === 0) {
+            gameOver = true;
+            document.getElementById("bannerText").textContent = "食料や地形に恵まれず、村は滅びてしまった。経過時間 " + fmtTime(elapsed) + "。";
+            document.getElementById("banner").classList.add("show");
+            var bwEl = document.getElementById("boardWrap"); bwEl.scrollLeft = 0; bwEl.scrollTop = 0;
+            addLog("村は滅びてしまった。");
+          }
+        }
+        hudAcc += dt;
+        if (hudAcc > 0.15) { hudAcc = 0; updateHUD(); }
+        // 資源グラフの記録（ゲーム内時間でサンプリングするので、一時停止中は増えない）
+        sampleAcc += gdt;
+        if (sampleAcc >= sampleInt) { sampleAcc = 0; pushSample(); }
+      }
+      // 見た目の補間
+      var running = started && !paused && !gameOver;
+      for (var k = 0; k < walkers.length; k++) {
+        var wk = walkers[k];
+        wk.rx += (wk.x - wk.rx) * 0.18;
+        wk.ry += (wk.y - wk.ry) * 0.18;
+        if (running && !reducedMotion && Math.abs(wk.x - wk.rx) + Math.abs(wk.y - wk.ry) > 0.03) wk.legPhase += dt * speed * 11;
+        if (running && wk.swingT > 0) wk.swingT = Math.max(0, wk.swingT - dt * speed);
+      }
+      // 拡大表示中は、ポインタを盤の端に寄せると視点がスクロールする
+      if (zoom > 1 && lastPtr) {
+        var wrapEl2 = document.getElementById("boardWrap");
+        var pm = 46, psp = 300 * dt;
+        if (lastPtr[0] < pm) wrapEl2.scrollLeft -= psp;
+        else if (lastPtr[0] > wrapEl2.clientWidth - pm) wrapEl2.scrollLeft += psp;
+        if (lastPtr[1] < pm) wrapEl2.scrollTop -= psp;
+        else if (lastPtr[1] > wrapEl2.clientHeight - pm) wrapEl2.scrollTop += psp;
+      }
+      for (var e = effects.length - 1; e >= 0; e--) { effects[e].t += dt * 2.2; if (effects[e].t >= 1) effects.splice(e, 1); }
+      // 煙突の煙を生む
+      if (running && !reducedMotion) {
+        smokeTimer -= dt;
+        if (smokeTimer <= 0) {
+          smokeTimer = 0.24;
+          settlements.forEach(function (s) {
+            if (s.smokeX == null || s.buildT > 0) return;
+            if (Math.random() < (s.level >= 2 ? 0.55 : 0.16) && smokes.length < 130) {
+              smokes.push({ x: s.smokeX + (Math.random() * 2 - 1), y: s.smokeY, vx: 2.5 + Math.random() * 2.5, vy: -(11 + Math.random() * 6), r: 2 + Math.random() * 1.6, life: 0, max: 2 + Math.random() * 1.2, dust: false });
+            }
+          });
+        }
+      }
+      for (var sm = smokes.length - 1; sm >= 0; sm--) {
+        var pp = smokes[sm];
+        pp.life += dt; pp.x += pp.vx * dt; pp.y += pp.vy * dt; pp.r += dt * 2.6;
+        if (pp.life >= pp.max) smokes.splice(sm, 1);
+      }
+      // 空を渡る鳥
+      if (!reducedMotion) {
+        var cwCss2 = canvas.width / (window.devicePixelRatio || 1);
+        birdTimer -= dt;
+        if (birdTimer <= 0) {
+          birdTimer = 7 + Math.random() * 9;
+          var dirB = Math.random() < 0.5 ? 1 : -1;
+          birds.push({ x: dirB > 0 ? -24 : cwCss2 + 24, y: 26 + Math.random() * 90, vx: dirB * (26 + Math.random() * 18), ph: Math.random() * 6.28 });
+        }
+        for (var bi = birds.length - 1; bi >= 0; bi--) {
+          birds[bi].x += birds[bi].vx * dt;
+          if (birds[bi].x < -40 || birds[bi].x > cwCss2 + 40) birds.splice(bi, 1);
+        }
+      }
+      draw(ts / 1000);
+    }
+
+    /* ================= HUD ================= */
+    function fmtTime(s) {
+      s = Math.floor(s);
+      return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+    }
+    function updateHUD() {
+      var st = stats();
+      document.getElementById("popNum").textContent = st.pop;
+      document.getElementById("setNum").textContent = st.set;
+      document.getElementById("walNum").textContent = st.wal;
+      document.getElementById("capNum").textContent = walkerCap();
+      document.getElementById("jobFarm").textContent = st.jobs.farm;
+      document.getElementById("jobEng").textContent = st.jobs.eng;
+      var foodEl = document.getElementById("foodNum");
+      foodEl.textContent = Math.floor(food);
+      foodEl.classList.toggle("danger", food <= 0);
+      document.getElementById("woodNum").textContent = Math.floor(wood);
+      document.getElementById("farmNum").textContent = countTerr(FARM);
+      document.getElementById("farmSupNum").textContent = countSupportedFarms();
+      document.getElementById("bridgeNum").textContent = bridges.size;
+      document.getElementById("forestNum").textContent = countTerr(FOREST);
+      document.getElementById("cutNum").textContent = countTerr(CUT);
+      document.getElementById("clock").textContent = fmtTime(elapsed);
+      document.getElementById("manaNum").textContent = Math.floor(mana);
+      document.getElementById("manaBar").style.width = (mana / MANA_MAX * 100) + "%";
+      document.getElementById("manaBarWrap").classList.toggle("low", mana < 6);
+    }
+    function flashMana() {
+      var el = document.getElementById("manaBarWrap");
+      el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    }
+
+    /* ================= 資源グラフ ================= */
+    var CHART_SERIES = [
+      { key: "food", name: "食料", color: "#d29a26" },
+      { key: "wood", name: "木材", color: "#9c6642" },
+      { key: "pop", name: "人口", color: "#4c9a4c" },
+      { key: "farm", name: "農地", color: "#3a79ba" }
+    ];
+    function pushSample() { // 現在の資源量を1点記録してグラフを描き直す
+      var st = stats();
+      resHist.push({ t: elapsed, food: Math.floor(food), wood: Math.floor(wood), pop: st.pop, farm: countTerr(FARM) });
+      if (resHist.length > 300) { // 長時間の記録は間引いて全体の流れを残す（間隔は実時刻で描くので歪まない）
+        var nh = [];
+        for (var i = 0; i < resHist.length; i += 2) nh.push(resHist[i]);
+        resHist = nh; sampleInt *= 2;
+      }
+      drawChart();
+    }
+    function niceCeil(v) { // グラフの縦軸の上限を 1/2/2.5/5×10^n の切りの良い値にする
+      if (v <= 10) return 10;
+      var p = Math.pow(10, Math.floor(Math.log10(v)));
+      var n = v / p;
+      return (n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 2.5 ? 2.5 : (n <= 5 ? 5 : 10)))) * p;
+    }
+    function fmtTick(v) { return v >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10); }
+    function drawChart() {
+      var svg = document.getElementById("chartSvg");
+      var legend = document.getElementById("chartLegend");
+      if (!svg || !legend) return;
+      var W2 = 640, H2 = 220, L = 46, R = 12, T = 10, B = 26;
+      var pw = W2 - L - R, ph = H2 - T - B;
+      var maxV = 0, maxT = 0, i, j, s, pt;
+      for (i = 0; i < resHist.length; i++) {
+        pt = resHist[i];
+        if (pt.t > maxT) maxT = pt.t;
+        for (j = 0; j < CHART_SERIES.length; j++) if (pt[CHART_SERIES[j].key] > maxV) maxV = pt[CHART_SERIES[j].key];
+      }
+      var yMax = niceCeil(maxV); // 縦軸は0から、データの最大値で決める
+      var xMax = Math.max(60, maxT);
+      function X(t) { return (L + (t / xMax) * pw).toFixed(1); }
+      function Y(v) { return (T + ph - (v / yMax) * ph).toFixed(1); }
+      var out = "";
+      for (i = 0; i <= 4; i++) { // 横グリッドと目盛り（4分割）
+        var gv = yMax * i / 4, gy = T + ph - (gv / yMax) * ph;
+        out += '<line class="grid" x1="' + L + '" y1="' + gy + '" x2="' + (L + pw) + '" y2="' + gy + '"/>';
+        out += '<text x="' + (L - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + fmtTick(gv) + '</text>';
+      }
+      out += '<text x="' + L + '" y="' + (H2 - 6) + '">0:00</text>';
+      out += '<text x="' + (L + pw / 2) + '" y="' + (H2 - 6) + '" text-anchor="middle">' + fmtTime(xMax / 2) + '</text>';
+      out += '<text x="' + (L + pw) + '" y="' + (H2 - 6) + '" text-anchor="end">' + fmtTime(xMax) + '</text>';
+      for (j = 0; j < CHART_SERIES.length; j++) {
+        s = CHART_SERIES[j];
+        if (resHist.length === 1) {
+          pt = resHist[0];
+          out += '<circle cx="' + X(pt.t) + '" cy="' + Y(pt[s.key]) + '" r="3" fill="' + s.color + '"/>';
+          continue;
+        }
+        var pts = "";
+        for (i = 0; i < resHist.length; i++) { pt = resHist[i]; pts += X(pt.t) + "," + Y(pt[s.key]) + " "; }
+        out += '<polyline points="' + pts + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+        pt = resHist[resHist.length - 1];
+        out += '<circle cx="' + X(pt.t) + '" cy="' + Y(pt[s.key]) + '" r="3" fill="' + s.color + '"/>';
+      }
+      svg.innerHTML = out;
+      var last = resHist[resHist.length - 1], lh = "";
+      for (j = 0; j < CHART_SERIES.length; j++) {
+        s = CHART_SERIES[j];
+        lh += '<span><span class="sw" style="background:' + s.color + '"></span>' + s.name + ' <b>' + (last ? last[s.key] : 0) + '</b></span>';
+      }
+      legend.innerHTML = lh;
+      svg.setAttribute("aria-label", "資源の推移グラフ。現在：食料" + (last ? last.food : 0) + "、木材" + (last ? last.wood : 0) + "、人口" + (last ? last.pop : 0) + "、農地" + (last ? last.farm : 0));
+    }
+
+    /* ================= 描画 ================= */
+    // ワールド座標 → 画面上の見かけ座標（回転を適用）。小数座標（人の補間）にも使える
+    function toView(x, y) {
+      if (rot === 0) return [x, y];
+      if (rot === 1) return [(H - 1) - y, x];
+      if (rot === 2) return [(W - 1) - x, (H - 1) - y];
+      return [y, (W - 1) - x];
+    }
+    // 見かけ座標 → ワールド座標（toView の逆変換）
+    function toWorld(vx, vy) {
+      if (rot === 0) return [vx, vy];
+      if (rot === 1) return [vy, (H - 1) - vx];
+      if (rot === 2) return [(W - 1) - vx, (H - 1) - vy];
+      return [(W - 1) - vy, vx];
+    }
+    function tileTop(x, y) { // 地形は平ら（高さなし）。タイル上面の中心を返す
+      var v = toView(x, y);
+      return {
+        cx: originX + (v[0] - v[1]) * tileW / 2,
+        cy: originY + (v[0] + v[1]) * tileH / 2
+      };
+    }
+    /* 地形レイヤー：地形・橋・集落の増減があったときだけ全体を描き直し、毎フレームは貼るだけにする。
+       グラデーションや質感を凝らしても軽く保つための仕組み */
+    function ensureTerrainLayer() {
+      var dpr = window.devicePixelRatio || 1;
+      var needW = Math.round(canvas.width / dpr), needH = Math.round(canvas.height / dpr);
+      if (!terrainDirty && terrainLayer.width === needW && terrainLayer.height === needH) return;
+      terrainLayer.width = needW; terrainLayer.height = needH;
+      var lctx = terrainLayer.getContext("2d");
+      var mainCtx = ctx;
+      ctx = lctx;
+      lctx.fillStyle = "#2f6aa8"; lctx.fillRect(0, 0, needW, needH);
+      // 奥→手前の順に描く（合計が小さい＝奥）。回転後の見かけ座標で判定する
+      for (var s = 0; s <= (W - 1) + (H - 1); s++) {
+        for (var vx = 0; vx < W; vx++) {
+          var vy = s - vx;
+          if (vy < 0 || vy >= H) continue;
+          var wpos = toWorld(vx, vy);
+          drawTile(wpos[0], wpos[1], 0);
+        }
+      }
+      ctx = mainCtx;
+      terrainDirty = false;
+    }
+    function drawWaterShimmer(t, viewL, viewT, viewR, viewB) { // 水面のきらめき（毎フレーム動く部分だけ別に描く）
+      ctx.lineCap = "round";
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        if (terr[idx(x, y)] !== WATER || hasBridge(x, y)) continue;
+        var p = tileTop(x, y);
+        if (p.cx < viewL - tileW || p.cx > viewR + tileW || p.cy < viewT - tileH || p.cy > viewB + tileH) continue;
+        var hv = hash2(x * 3 + 7, y * 5 + 1);
+        var a = 0.16 + 0.15 * (0.5 + 0.5 * Math.sin(t * 1.8 + hv * 6.28 + (x + y) * 0.4));
+        var len = tileW * (0.13 + hv * 0.12);
+        var ox = (hv - 0.5) * tileW * 0.34, oy = (hash2(x + 40, y + 9) - 0.5) * tileH * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(p.cx + ox - len / 2, p.cy + oy - len / 4);
+        ctx.lineTo(p.cx + ox + len / 2, p.cy + oy + len / 4);
+        ctx.strokeStyle = "rgba(235,246,255," + a.toFixed(3) + ")";
+        ctx.lineWidth = Math.max(1, tileW * 0.045);
+        ctx.stroke();
+      }
+    }
+    function drawCloudShadows(t, cw, ch) { // ゆっくり流れる雲の影（鑑賞の味付け。動きを減らす設定では静止）
+      var tt = reducedMotion ? 0 : t;
+      ctx.fillStyle = "rgba(24,42,26,.055)";
+      for (var i = 0; i < 3; i++) {
+        var sp = 6 + i * 2.5;
+        var cx = ((hash2(i * 17 + 3, 8) * (cw + 700) + tt * sp) % (cw + 700)) - 350;
+        var cy = ch * (0.22 + i * 0.27) + Math.sin(tt * 0.05 + i * 2.1) * ch * 0.03;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, cw * (0.20 + i * 0.05), ch * 0.13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(cx + cw * 0.10, cy + ch * 0.05, cw * 0.13, ch * 0.09, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    function draw(t) {
+      var dpr = window.devicePixelRatio || 1;
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      var cwCss = canvas.width / dpr, chCss = canvas.height / dpr;
+      ctx.fillStyle = "#3574ad"; ctx.fillRect(0, 0, cwCss, chCss);
+      // 拡大表示中はスクロールで見えている範囲のマスだけ描く（大きな盤面でも軽く保つ）
+      var wrapV = document.getElementById("boardWrap");
+      var viewL = 0, viewT = 0, viewR = cwCss, viewB = chCss;
+      if (zoom > 1) {
+        viewL = wrapV.scrollLeft; viewT = wrapV.scrollTop;
+        viewR = viewL + wrapV.clientWidth; viewB = viewT + wrapV.clientHeight;
+      }
+      ensureTerrainLayer();
+      ctx.drawImage(terrainLayer, 0, 0, terrainLayer.width, terrainLayer.height);
+      drawWaterShimmer(t, viewL, viewT, viewR, viewB);
+      drawCloudShadows(t, cwCss, chCss);
+      // 集落（奥→手前の順）
+      var sList = [];
+      settlements.forEach(function (st) { sList.push(st); });
+      sList.sort(function (a, b) {
+        var va = toView(a.x, a.y), vb = toView(b.x, b.y);
+        return (va[0] + va[1]) - (vb[0] + vb[1]);
+      });
+      for (var si = 0; si < sList.length; si++) drawSettlement(sList[si], t);
+      // 村人（奥→手前の順）
+      var wList = walkers.slice().sort(function (a, b) {
+        var va = toView(a.rx, a.ry), vb = toView(b.rx, b.ry);
+        return (va[0] + va[1]) - (vb[0] + vb[1]);
+      });
+      for (var i = 0; i < wList.length; i++) drawWalker(wList[i]);
+      // 煙・土ぼこり
+      for (var sm2 = 0; sm2 < smokes.length; sm2++) drawSmoke(smokes[sm2]);
+      // エフェクト
+      for (var e = 0; e < effects.length; e++) drawEffect(effects[e]);
+      // 鳥
+      for (var bd2 = 0; bd2 < birds.length; bd2++) drawBird(birds[bd2], t);
+      // ホバー（変換されるマスを1つ示す）
+      if (hover && !gameOver) {
+        var pp2 = tileTop(hover[0], hover[1]);
+        diamond(pp2.cx, pp2.cy);
+        ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,.16)"; ctx.fill();
+      }
+      // 全体の光：左上からの柔らかい日差しと、周辺の落ち着き
+      var lg = ctx.createLinearGradient(0, 0, cwCss, chCss);
+      lg.addColorStop(0, "rgba(255,244,205,.07)");
+      lg.addColorStop(0.45, "rgba(255,255,255,0)");
+      lg.addColorStop(1, "rgba(22,30,52,.09)");
+      ctx.fillStyle = lg; ctx.fillRect(0, 0, cwCss, chCss);
+      ctx.restore();
+    }
+    function diamond(cx, cy) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - tileH / 2); ctx.lineTo(cx + tileW / 2, cy);
+      ctx.lineTo(cx, cy + tileH / 2); ctx.lineTo(cx - tileW / 2, cy);
+      ctx.closePath();
+    }
+    function tri(cx, apexY, halfW, hgt) {
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW, apexY + hgt); ctx.lineTo(cx, apexY); ctx.lineTo(cx + halfW, apexY + hgt);
+      ctx.closePath(); ctx.fill();
+    }
+    function drawTree(cx, cy, u, s, seed) { // 木：幹と、重なった樹冠の濃淡で立体感を出す
+      // 影
+      ctx.beginPath(); ctx.ellipse(cx + 1.2 * u * s, cy + 3.6 * u * s, 5.4 * u * s, 1.9 * u * s, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(18,38,14,.30)"; ctx.fill();
+      // 幹（右半分は陰）
+      ctx.fillStyle = "#6a4e30";
+      ctx.fillRect(cx - 0.75 * u * s, cy + 0.2 * u * s, 1.5 * u * s, 3.4 * u * s);
+      ctx.fillStyle = "rgba(0,0,0,.20)";
+      ctx.fillRect(cx, cy + 0.2 * u * s, 0.75 * u * s, 3.4 * u * s);
+      // 樹冠：暗い緑の塊を重ね、左上に光を載せる
+      var blobs = [[0, -4.4, 4.7], [-3.3, -2.4, 3.4], [3.3, -2.4, 3.4], [-1.7, -6.3, 3.3], [1.9, -5.9, 3.0], [0, -3.4, 3.6]];
+      var i, b;
+      ctx.fillStyle = "#2e6630";
+      for (i = 0; i < blobs.length; i++) { b = blobs[i]; ctx.beginPath(); ctx.arc(cx + b[0] * u * s, cy + b[1] * u * s, b[2] * u * s, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = "#3f7f3a";
+      for (i = 0; i < blobs.length; i++) { b = blobs[i]; ctx.beginPath(); ctx.arc(cx + (b[0] - 0.8) * u * s, cy + (b[1] - 0.9) * u * s, b[2] * 0.62 * u * s, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = "rgba(126,178,92,.75)";
+      var hx = cx + (seed - 0.5) * 2.4 * u * s, hy = cy - 6.2 * u * s;
+      ctx.beginPath(); ctx.arc(hx, hy, 1.5 * u * s, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx - 2.6 * u * s, cy - 3.6 * u * s, 1.1 * u * s, 0, Math.PI * 2); ctx.fill();
+    }
+    function drawPine(cx, cy, u, s) { // 松の木（s=大きさ係数）
+      ctx.fillStyle = "#6e5636";
+      ctx.fillRect(cx - 0.8 * u * s, cy + 0.5 * u * s, 1.6 * u * s, 3 * u * s);
+      ctx.fillStyle = "#3e7d3a";
+      tri(cx, cy - 10.5 * u * s, 5 * u * s, 6 * u * s);
+      tri(cx, cy - 7.5 * u * s, 6.2 * u * s, 6 * u * s);
+      tri(cx, cy - 4.5 * u * s, 7.4 * u * s, 6 * u * s);
+    }
+    function waterColor(x, y, t) {
+      var v = Math.sin(t * 1.6 + (x + y) * 0.7);
+      return v > 0 ? "#4183c4" : "#3a79ba";
+    }
+    function drawTile(x, y, t) {
+      var ter = terr[idx(x, y)], p = tileTop(x, y);
+      var hv = hash2(x, y);
+      if (ter === WATER) {
+        diamond(p.cx, p.cy);
+        var wg = ctx.createLinearGradient(p.cx, p.cy - tileH / 2, p.cx, p.cy + tileH / 2);
+        if (hv < 0.5) { wg.addColorStop(0, "#4d94cf"); wg.addColorStop(1, "#2e66a3"); }
+        else { wg.addColorStop(0, "#468ccb"); wg.addColorStop(1, "#285f9c"); }
+        ctx.fillStyle = wg;
+        ctx.fill();
+        // 陸に接する水は、内側に淡い水際の線を引いて岸らしく見せる
+        if (tAt(x + 1, y) !== WATER || tAt(x - 1, y) !== WATER || tAt(x, y + 1) !== WATER || tAt(x, y - 1) !== WATER) {
+          ctx.beginPath();
+          ctx.moveTo(p.cx, p.cy - tileH * 0.36); ctx.lineTo(p.cx + tileW * 0.36, p.cy);
+          ctx.lineTo(p.cx, p.cy + tileH * 0.36); ctx.lineTo(p.cx - tileW * 0.36, p.cy);
+          ctx.closePath();
+          ctx.strokeStyle = "rgba(230,244,252,.28)"; ctx.lineWidth = 1.1; ctx.stroke();
+        }
+        if (hasBridge(x, y)) { // 橋：板張りの小道
+          ctx.beginPath();
+          ctx.moveTo(p.cx, p.cy - tileH * 0.30); ctx.lineTo(p.cx + tileW * 0.30, p.cy);
+          ctx.lineTo(p.cx, p.cy + tileH * 0.30); ctx.lineTo(p.cx - tileW * 0.30, p.cy);
+          ctx.closePath();
+          ctx.fillStyle = "#a97d4e"; ctx.fill();
+          ctx.strokeStyle = "rgba(90,60,25,.55)"; ctx.lineWidth = 1; ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(p.cx - tileW * 0.18, p.cy - tileH * 0.09); ctx.lineTo(p.cx + tileW * 0.18, p.cy + tileH * 0.09);
+          ctx.moveTo(p.cx - tileW * 0.18, p.cy + tileH * 0.09); ctx.lineTo(p.cx + tileW * 0.18, p.cy - tileH * 0.09);
+          ctx.strokeStyle = "rgba(90,60,25,.4)"; ctx.stroke();
+          ctx.beginPath(); // 板の継ぎ目
+          ctx.strokeStyle = "rgba(80,52,20,.5)"; ctx.lineWidth = 1;
+          for (var bf = 0.28; bf <= 0.72; bf += 0.22) {
+            var bcy = p.cy + (bf - 0.5) * tileH * 0.56;
+            var bhw = tileW * 0.30 * (1 - Math.abs(bf - 0.5) * 0.9);
+            ctx.moveTo(p.cx - bhw, bcy); ctx.lineTo(p.cx + bhw, bcy);
+          }
+          ctx.stroke();
+        }
+        return;
+      }
+      if (ter === PLAIN) {
+        diamond(p.cx, p.cy);
+        var pg = ctx.createLinearGradient(p.cx - tileW / 2, p.cy - tileH / 2, p.cx + tileW / 2, p.cy + tileH / 2);
+        if (hv < 0.33) { pg.addColorStop(0, "#86c063"); pg.addColorStop(1, "#74ab52"); }
+        else if (hv < 0.66) { pg.addColorStop(0, "#7db65c"); pg.addColorStop(1, "#6ba34c"); }
+        else { pg.addColorStop(0, "#8ac468"); pg.addColorStop(1, "#7ab457"); }
+        ctx.fillStyle = pg;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(46,74,32,.15)"; ctx.lineWidth = 1; ctx.stroke();
+        if (!settlementAt(x, y)) { // 草の質感：小さな草株と土の斑
+          var tu = tileW / 30;
+          var gx = p.cx + (hv - 0.5) * tileW * 0.42, gy = p.cy + (hash2(x * 3 + 1, y * 7) - 0.5) * tileH * 0.44;
+          ctx.strokeStyle = "rgba(50,92,36,.55)"; ctx.lineWidth = Math.max(0.8, 0.65 * tu); ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(gx, gy); ctx.lineTo(gx - 1.1 * tu, gy - 1.9 * tu);
+          ctx.moveTo(gx + 1.4 * tu, gy + 0.5 * tu); ctx.lineTo(gx + 1.9 * tu, gy - 1.3 * tu);
+          ctx.moveTo(gx - 2.6 * tu, gy + 1.1 * tu); ctx.lineTo(gx - 3.3 * tu, gy - 0.6 * tu);
+          ctx.stroke();
+          ctx.fillStyle = "rgba(120,96,58,.20)";
+          ctx.beginPath(); ctx.ellipse(p.cx - (hv - 0.5) * tileW * 0.3, p.cy + tileH * 0.16, 2.6 * tu, 1.1 * tu, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        if (hv > 0.93 && !settlementAt(x, y)) { // たまに花
+          var tu = tileW / 30;
+          ctx.fillStyle = "#e86a92";
+          ctx.beginPath(); ctx.arc(p.cx - 3 * tu, p.cy + 1 * tu, 1.1 * tu, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#f5f2e8";
+          ctx.beginPath(); ctx.arc(p.cx + 1 * tu, p.cy + 2.4 * tu, 1 * tu, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#e9c13b";
+          ctx.beginPath(); ctx.arc(p.cx + 3.6 * tu, p.cy - 0.6 * tu, 1 * tu, 0, Math.PI * 2); ctx.fill();
+        }
+        return;
+      }
+      if (ter === FARM) { // 農地：土の畝と作物
+        diamond(p.cx, p.cy);
+        var fg = ctx.createLinearGradient(p.cx - tileW / 2, p.cy, p.cx + tileW / 2, p.cy);
+        fg.addColorStop(0, "#a37f4e"); fg.addColorStop(1, "#8a683c");
+        ctx.fillStyle = fg; ctx.fill();
+        ctx.strokeStyle = "rgba(60,40,16,.25)"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = "rgba(74,52,24,.45)"; ctx.lineWidth = Math.max(1, tileW * 0.03);
+        ctx.lineCap = "round";
+        for (var rI = -1; rI <= 1; rI++) { // 畝の溝
+          var off = rI * tileH * 0.22;
+          ctx.beginPath();
+          ctx.moveTo(p.cx - tileW * 0.32, p.cy + off - tileH * 0.16);
+          ctx.lineTo(p.cx + tileW * 0.32, p.cy + off + tileH * 0.16);
+          ctx.stroke();
+        }
+        // 作物の株：マスごとに色味と背丈が少しずつ違う
+        for (var rJ = -1; rJ <= 1; rJ++) for (var cJ = -2; cJ <= 2; cJ++) {
+          var ch2 = hash2(x * 7 + cJ * 3 + 11, y * 7 + rJ * 5 + 3);
+          var px2 = p.cx + cJ * tileW * 0.125 - rJ * tileW * 0.055;
+          var py2 = p.cy + cJ * tileH * 0.125 + rJ * tileH * 0.21;
+          var cr = tileW * (0.035 + ch2 * 0.02);
+          ctx.beginPath(); ctx.arc(px2, py2, cr, 0, Math.PI * 2);
+          ctx.fillStyle = ch2 < 0.4 ? "#5da244" : (ch2 < 0.75 ? "#6cb04c" : "#86bc57");
+          ctx.fill();
+          ctx.beginPath(); ctx.arc(px2 - cr * 0.3, py2 - cr * 0.35, cr * 0.45, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(220,240,180,.5)"; ctx.fill();
+        }
+        return;
+      }
+      if (ter === FOREST) { // 森：濃い緑の地面に木を2本
+        diamond(p.cx, p.cy);
+        var eg = ctx.createLinearGradient(p.cx - tileW / 2, p.cy - tileH / 2, p.cx + tileW / 2, p.cy + tileH / 2);
+        eg.addColorStop(0, "#558f47"); eg.addColorStop(1, "#41743a");
+        ctx.fillStyle = eg; ctx.fill();
+        ctx.strokeStyle = "rgba(24,48,20,.22)"; ctx.lineWidth = 1; ctx.stroke();
+        if (!settlementAt(x, y)) {
+          var u = tileW / 30;
+          var o1 = (hv - 0.5) * tileW * 0.2;
+          drawTree(p.cx - tileW * 0.17 + o1, p.cy - tileH * 0.02, u, 0.92, hv);
+          drawTree(p.cx + tileW * 0.18 - o1, p.cy + tileH * 0.20, u, 0.74, hash2(x + 31, y + 7));
+        }
+        return;
+      }
+      if (ter === CUT) { // 伐採地：茶色い土と切り株。一定時間で森に戻る
+        diamond(p.cx, p.cy);
+        var cg = ctx.createLinearGradient(p.cx - tileW / 2, p.cy, p.cx + tileW / 2, p.cy);
+        cg.addColorStop(0, hv < 0.5 ? "#b9925e" : "#b28a52"); cg.addColorStop(1, "#9c7843");
+        ctx.fillStyle = cg; ctx.fill();
+        ctx.strokeStyle = "rgba(70,48,20,.22)"; ctx.lineWidth = 1; ctx.stroke();
+        if (!settlementAt(x, y)) {
+          var cu = tileW / 30;
+          // 倒れた丸太
+          ctx.strokeStyle = "#7d5c33"; ctx.lineWidth = 2.6 * cu; ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(p.cx - tileW * 0.20, p.cy + tileH * 0.22); ctx.lineTo(p.cx + tileW * 0.05, p.cy + tileH * 0.34);
+          ctx.stroke();
+          ctx.beginPath(); ctx.arc(p.cx + tileW * 0.05, p.cy + tileH * 0.34, 1.3 * cu, 0, Math.PI * 2);
+          ctx.fillStyle = "#d9c49a"; ctx.fill();
+          // 切り株（年輪つき）
+          ctx.fillStyle = "#c8ab7c";
+          ctx.beginPath(); ctx.arc(p.cx - tileW * 0.14, p.cy + tileH * 0.08, 2.2 * cu, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(p.cx + tileW * 0.15, p.cy - tileH * 0.10, 1.8 * cu, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "rgba(90,60,25,.6)"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(p.cx - tileW * 0.14, p.cy + tileH * 0.08, 2.2 * cu, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(p.cx + tileW * 0.15, p.cy - tileH * 0.10, 1.8 * cu, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(p.cx - tileW * 0.14, p.cy + tileH * 0.08, 1.1 * cu, 0, Math.PI * 2); ctx.stroke();
+        }
+        return;
+      }
+      // 山：岩の峰を高く描く（タイル自体は平ら）
+      // 山が地面に落とす影
+      ctx.beginPath();
+      ctx.moveTo(p.cx, p.cy - tileH * 0.28); ctx.lineTo(p.cx + tileW * 0.68, p.cy + tileH * 0.22);
+      ctx.lineTo(p.cx + tileW * 0.2, p.cy + tileH * 0.52); ctx.lineTo(p.cx - tileW * 0.48, p.cy + tileH * 0.02);
+      ctx.closePath(); ctx.fillStyle = "rgba(26,38,20,.20)"; ctx.fill();
+      diamond(p.cx, p.cy);
+      var mg = ctx.createLinearGradient(p.cx - tileW / 2, p.cy, p.cx + tileW / 2, p.cy);
+      mg.addColorStop(0, "#8f8f83"); mg.addColorStop(1, "#76766c");
+      ctx.fillStyle = mg; ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.12)"; ctx.lineWidth = 1; ctx.stroke();
+      var apexY = p.cy - tileW * (0.72 + hv * 0.2);
+      var mGrad = ctx.createLinearGradient(p.cx - tileW * 0.36, apexY, p.cx, p.cy + tileH * 0.30);
+      mGrad.addColorStop(0, "#b4b4a9"); mGrad.addColorStop(1, "#8d8d82");
+      ctx.beginPath(); // 左斜面（光を受ける）
+      ctx.moveTo(p.cx - tileW * 0.36, p.cy + tileH * 0.30);
+      ctx.lineTo(p.cx, apexY);
+      ctx.lineTo(p.cx, p.cy + tileH * 0.30);
+      ctx.closePath(); ctx.fillStyle = mGrad; ctx.fill();
+      ctx.beginPath(); // 右斜面（陰）
+      ctx.moveTo(p.cx, apexY);
+      ctx.lineTo(p.cx + tileW * 0.36, p.cy + tileH * 0.30);
+      ctx.lineTo(p.cx, p.cy + tileH * 0.30);
+      ctx.closePath(); ctx.fillStyle = "#6d6d64"; ctx.fill();
+      ctx.beginPath(); // 稜線と岩の節理
+      ctx.moveTo(p.cx, apexY); ctx.lineTo(p.cx, p.cy + tileH * 0.30);
+      ctx.moveTo(p.cx - tileW * 0.20, p.cy + tileH * 0.02); ctx.lineTo(p.cx - tileW * 0.05, p.cy + tileH * 0.10);
+      ctx.moveTo(p.cx + tileW * 0.10, p.cy + tileH * 0.06); ctx.lineTo(p.cx + tileW * 0.24, p.cy + tileH * 0.16);
+      ctx.strokeStyle = "rgba(40,40,36,.28)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); // 雪帽子
+      ctx.moveTo(p.cx, apexY);
+      ctx.lineTo(p.cx + tileW * 0.115, apexY + tileW * 0.20);
+      ctx.lineTo(p.cx + tileW * 0.03, apexY + tileW * 0.155);
+      ctx.lineTo(p.cx - tileW * 0.045, apexY + tileW * 0.225);
+      ctx.lineTo(p.cx - tileW * 0.115, apexY + tileW * 0.20);
+      ctx.closePath(); ctx.fillStyle = "#f4f6f2"; ctx.fill();
+    }
+    function drawSettlement(s, t) {
+      // 占有範囲の中心（小数座標）に回転を適用して画面位置を求める
+      var v = toView(s.x + (s.size - 1) / 2, s.y + (s.size - 1) / 2);
+      var cx = originX + (v[0] - v[1]) * tileW / 2;
+      var cy = originY + (v[0] + v[1]) * tileH / 2;
+      var base = cy + s.size * tileH * 0.34;
+      var u = tileW / 30;
+      var col = "#c46a2d", dark = "#96501f"; // 村の屋根色（テラコッタ）
+      // 2マス以上を占有する建物は敷地の輪郭を示す
+      if (s.size > 1) {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - s.size * tileH / 2); ctx.lineTo(cx + s.size * tileW / 2, cy);
+        ctx.lineTo(cx, cy + s.size * tileH / 2); ctx.lineTo(cx - s.size * tileW / 2, cy);
+        ctx.closePath();
+        ctx.strokeStyle = "rgba(196,106,45,.55)";
+        ctx.lineWidth = 1.5; ctx.stroke();
+      }
+      // 建物が地面に落とす影
+      ctx.beginPath();
+      ctx.ellipse(cx + tileW * 0.06, base + tileH * 0.10, tileW * s.size * 0.46, tileH * s.size * 0.30, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(24,36,18,.20)"; ctx.fill();
+      function box(bx, top, w, hgt, fill) {
+        ctx.fillStyle = fill; ctx.fillRect(bx - w / 2, top, w, hgt);
+        ctx.fillStyle = "rgba(70,50,20,.10)"; ctx.fillRect(bx, top, w / 2, hgt); // 右半分に陰
+        ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.fillRect(bx - w / 2, top, w, Math.max(1, hgt * 0.07)); // 上端の光
+        ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.strokeRect(bx - w / 2, top, w, hgt);
+      }
+      function roof(bx, topY, halfW, hgt, fill) {
+        ctx.beginPath();
+        ctx.moveTo(bx - halfW, topY); ctx.lineTo(bx, topY - hgt); ctx.lineTo(bx + halfW, topY);
+        ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+        ctx.beginPath(); // 屋根の右半分の陰
+        ctx.moveTo(bx, topY - hgt); ctx.lineTo(bx + halfW, topY); ctx.lineTo(bx, topY);
+        ctx.closePath(); ctx.fillStyle = "rgba(60,30,5,.16)"; ctx.fill();
+      }
+      function win(bx, by, w, hgt) { // 明かりのついた窓
+        ctx.fillStyle = "#ffd977"; ctx.fillRect(bx - w / 2, by, w, hgt);
+        ctx.strokeStyle = "rgba(90,60,10,.45)"; ctx.lineWidth = 1; ctx.strokeRect(bx - w / 2, by, w, hgt);
+      }
+      function door(bx, w, hgt) {
+        ctx.fillStyle = "#6b4a2a"; ctx.fillRect(bx - w / 2, base - hgt, w, hgt);
+      }
+      function chimney(bx, topY, w, hgt) { // 煙突（煙の発生位置も記録する）
+        ctx.fillStyle = "#9a8f7d"; ctx.fillRect(bx - w / 2, topY, w, hgt);
+        ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.strokeRect(bx - w / 2, topY, w, hgt);
+        s.smokeX = bx; s.smokeY = topY - 1;
+      }
+      var topY;
+      function body() {
+        if (s.level === 1) { // 小屋（1マス）
+          var bw1 = 13 * u, bh1 = 8 * u; topY = base - bh1;
+          box(cx, topY, bw1, bh1, "#d9c08f");
+          roof(cx, topY, bw1 / 2 + 2, 6 * u, "#8a6b42");
+          door(cx + 3 * u, 4 * u, 5 * u);
+          win(cx - 3.2 * u, topY + 2.6 * u, 2.6 * u, 2.6 * u);
+          s.smokeX = cx + 1.5 * u; s.smokeY = topY - 6 * u - 1; // 屋根から細い煙
+        } else if (s.level === 2) { // 家（1マス）
+          var bw2 = 16 * u, bh2 = 11 * u; topY = base - bh2;
+          box(cx, topY, bw2, bh2, "#e8e2d0");
+          roof(cx, topY, bw2 / 2 + 2, 8 * u, col);
+          chimney(cx + 5 * u, topY - 9.5 * u, 2.8 * u, 5.5 * u);
+          door(cx, 4.6 * u, 6 * u);
+          win(cx - 5 * u, topY + 3.4 * u, 2.8 * u, 3 * u);
+          win(cx + 5 * u, topY + 3.4 * u, 2.8 * u, 3 * u);
+        } else if (s.level === 3) { // 豪邸（2×2）
+          var bw3 = tileW * 1.12, bh3 = 13 * u; topY = base - bh3;
+          box(cx - bw3 / 2 + 4.5 * u, topY - 4 * u, 8 * u, bh3 + 4 * u, "#e2d8bf");
+          roof(cx - bw3 / 2 + 4.5 * u, topY - 4 * u, 5.5 * u, 5 * u, dark);
+          box(cx + bw3 / 2 - 4.5 * u, topY - 4 * u, 8 * u, bh3 + 4 * u, "#e2d8bf");
+          roof(cx + bw3 / 2 - 4.5 * u, topY - 4 * u, 5.5 * u, 5 * u, dark);
+          box(cx, topY, bw3, bh3, "#ece4cf");
+          roof(cx, topY, bw3 / 2 + 2, 9 * u, col);
+          chimney(cx + bw3 * 0.30, topY - 8.5 * u, 3 * u, 6 * u);
+          win(cx - bw3 / 4, topY + 4 * u, 3 * u, 3.4 * u);
+          win(cx + bw3 / 4, topY + 4 * u, 3 * u, 3.4 * u);
+          win(cx - bw3 / 2 + 4.5 * u, topY + 1.5 * u, 2.6 * u, 3 * u);
+          win(cx + bw3 / 2 - 4.5 * u, topY + 1.5 * u, 2.6 * u, 3 * u);
+          ctx.fillStyle = "#6b4a2a"; ctx.fillRect(cx - 2.5 * u, base - 6 * u, 5 * u, 6 * u);
+          // 屋根の小旗（風になびく）
+          ctx.strokeStyle = "#555"; ctx.lineWidth = 1.1;
+          ctx.beginPath(); ctx.moveTo(cx, topY - 9 * u); ctx.lineTo(cx, topY - 13.5 * u); ctx.stroke();
+          var wv3 = Math.sin(t * 7 + cx) * 0.7 * u;
+          ctx.beginPath();
+          ctx.moveTo(cx, topY - 13.5 * u); ctx.lineTo(cx + 4.6 * u, topY - 12.2 * u + wv3); ctx.lineTo(cx, topY - 10.9 * u);
+          ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+        } else { // お城（3×3）
+          var bw4 = tileW * 1.68, bh4 = 14 * u; topY = base - bh4;
+          box(cx - bw4 / 2 + 6 * u, topY - 8 * u, 10 * u, bh4 + 8 * u, "#dedbd0");
+          roof(cx - bw4 / 2 + 6 * u, topY - 8 * u, 7 * u, 7 * u, dark);
+          box(cx + bw4 / 2 - 6 * u, topY - 8 * u, 10 * u, bh4 + 8 * u, "#dedbd0");
+          roof(cx + bw4 / 2 - 6 * u, topY - 8 * u, 7 * u, 7 * u, dark);
+          box(cx, topY, bw4, bh4, "#e9e9e2");
+          chimney(cx + bw4 * 0.33, topY - 5 * u, 3.2 * u, 6.5 * u);
+          win(cx - bw4 / 4, topY + 4.5 * u, 3 * u, 3.4 * u);
+          win(cx + bw4 / 4, topY + 4.5 * u, 3 * u, 3.4 * u);
+          var tw = 13 * u, th = 27 * u;
+          box(cx, base - th, tw, th, "#f0efe8");
+          roof(cx, base - th, tw / 2 + 3, 8 * u, col);
+          win(cx, base - th + 7 * u, 3 * u, 3.6 * u);
+          win(cx, base - th + 14.5 * u, 3 * u, 3.6 * u);
+          ctx.strokeStyle = "#555"; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(cx, base - th - 8 * u); ctx.lineTo(cx, base - th - 13 * u); ctx.stroke();
+          var wv4 = Math.sin(t * 7 + cx * 0.7) * 0.9 * u; // 旗が風になびく
+          ctx.beginPath();
+          ctx.moveTo(cx, base - th - 13 * u); ctx.lineTo(cx + 6.4 * u, base - th - 11 * u + wv4); ctx.lineTo(cx, base - th - 9 * u);
+          ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+          ctx.fillStyle = "#5d4630"; ctx.fillRect(cx - 3 * u, base - 7 * u, 6 * u, 7 * u);
+          topY = base - th - 8 * u;
+        }
+      }
+      // 建築中は足場を組み、下から少しずつ建ち上がる
+      var fullH = [0, 15, 20, 24, 38][s.level] * u;
+      if (s.buildT > 0) {
+        var pr = clamp(1 - s.buildT / 2.6, 0.22, 1);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx - tileW * s.size * 0.62, base - fullH * pr, tileW * s.size * 1.24, fullH * pr + 2);
+        ctx.clip();
+        body();
+        ctx.restore();
+        var hw = tileW * s.size * 0.4, sh = fullH * 0.96;
+        ctx.strokeStyle = "#a9825a"; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - hw, base); ctx.lineTo(cx - hw, base - sh);
+        ctx.moveTo(cx + hw, base); ctx.lineTo(cx + hw, base - sh);
+        ctx.moveTo(cx - hw, base - sh); ctx.lineTo(cx + hw, base - sh);
+        ctx.moveTo(cx - hw, base - sh * 0.55); ctx.lineTo(cx + hw, base - sh * 0.55);
+        ctx.moveTo(cx - hw, base); ctx.lineTo(cx + hw, base - sh * 0.55);
+        ctx.stroke();
+        if (!reducedMotion && Math.random() < 0.25 && smokes.length < 130) { // 工事の土ぼこり
+          smokes.push({ x: cx + (Math.random() * 2 - 1) * hw * 0.7, y: base - 1, vx: (Math.random() * 2 - 1) * 3, vy: -(4 + Math.random() * 4), r: 2.4 + Math.random() * 2, life: 0, max: 0.9 + Math.random() * 0.6, dust: true });
+        }
+        s.smokeX = null; // 完成するまで煙は出ない
+      } else {
+        body();
+      }
+    }
+    var JOB_STYLE = {
+      farm: { robe: "#7a9a3d", dark: "#5c742c", kanji: "農", badge: "#6d8f35", tool: "#8a6b42" },
+      eng:  { robe: "#b06a28", dark: "#84501c", kanji: "土", badge: "#b06a28", tool: "#9aa0a4" }
+    };
+    function drawWalker(w) {
+      // 補間座標（ワールド）に回転を適用してタイル中心を計算（人ごとに少しずらして重なりを避ける）
+      var v = toView(w.rx + w.ox, w.ry + w.oy);
+      var cx = originX + (v[0] - v[1]) * tileW / 2;
+      var cy = originY + (v[0] + v[1]) * tileH / 2;
+      var u = tileW / 22.5 * (1 + Math.min(w.power - 1, 4) * 0.13); // 人の大きさ（合体した人は少し大きくなる）
+      var js = JOB_STYLE[w.job];
+      var groundY = cy + tileH * 0.30;
+      var moving = Math.abs(w.x - w.rx) + Math.abs(w.y - w.ry) > 0.03;
+      var sw = moving ? Math.sin(w.legPhase) * 2.1 * u : 0; // 脚の振り
+      var legLen = 3.4 * u, bodyH = 4.8 * u, headR = 1.95 * u;
+      var hipY = groundY - legLen + (moving ? Math.abs(Math.sin(w.legPhase)) * 0.5 * u : 0);
+      var bodyTop = hipY - bodyH;
+      var headCy = bodyTop - headR + 0.5 * u;
+      // 影
+      ctx.beginPath(); ctx.ellipse(cx, groundY + 0.6 * u, 3.6 * u, 1.3 * u, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,.20)"; ctx.fill();
+      // 脚（歩くときは交互に振れる）
+      ctx.strokeStyle = "#4a3b2c"; ctx.lineWidth = Math.max(1.2, 1.5 * u); ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx, hipY); ctx.lineTo(cx + (moving ? sw : 1 * u), groundY);
+      ctx.moveTo(cx, hipY); ctx.lineTo(cx - (moving ? sw : 1 * u), groundY);
+      ctx.stroke();
+      // 体（職業色のローブ）
+      ctx.beginPath();
+      ctx.moveTo(cx - 2.9 * u, hipY + 0.6 * u); ctx.lineTo(cx - 2.1 * u, bodyTop);
+      ctx.lineTo(cx + 2.1 * u, bodyTop); ctx.lineTo(cx + 2.9 * u, hipY + 0.6 * u);
+      ctx.closePath(); ctx.fillStyle = js.robe; ctx.fill();
+      ctx.strokeStyle = js.dark; ctx.lineWidth = 1; ctx.stroke();
+      // 背負い荷物（一部の人）
+      if (w.prop === 1) {
+        ctx.fillStyle = "#b08954"; ctx.fillRect(cx + 2.3 * u, bodyTop + 0.8 * u, 2.5 * u, 3.2 * u);
+        ctx.strokeStyle = "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.strokeRect(cx + 2.3 * u, bodyTop + 0.8 * u, 2.5 * u, 3.2 * u);
+      }
+      // 腕と道具（仕事中は振り上げてから振り下ろす）
+      var fc = w.face || 1;
+      var shX = cx + fc * 1.7 * u, shY = bodyTop + 1.5 * u;
+      var angA = 1.05; // 普段は道具を下げて持つ
+      if (w.swingT > 0) { var swp = 1 - w.swingT / 0.3; angA = -1.95 + swp * 3.1; }
+      var toolLen = 3.4;
+      var handX = shX + fc * Math.cos(angA) * 2.6 * u, handY = shY + Math.sin(angA) * 2.6 * u;
+      ctx.strokeStyle = js.dark; ctx.lineWidth = Math.max(1, 1.25 * u); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(handX, handY); ctx.stroke();
+      var tipX = handX + fc * Math.cos(angA) * toolLen * u, tipY = handY + Math.sin(angA) * toolLen * u;
+      ctx.strokeStyle = "#8a6b42"; ctx.lineWidth = Math.max(1, 1.05 * u);
+      ctx.beginPath(); ctx.moveTo(handX, handY); ctx.lineTo(tipX, tipY); ctx.stroke();
+      // 鍬・斧の刃
+      ctx.fillStyle = js.tool;
+      ctx.fillRect(tipX - 1.1 * u, tipY - 0.6 * u, 2.2 * u, 1.2 * u);
+      // 頭
+      ctx.beginPath(); ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
+      ctx.fillStyle = "#f2d5a0"; ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1; ctx.stroke();
+      // 麦わら帽子（農民と一部の人）
+      if (w.job === "farm" || w.prop === 2) {
+        ctx.beginPath(); ctx.ellipse(cx, headCy - headR * 0.55, 3.1 * u, 1.05 * u, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "#e8cf7e"; ctx.fill();
+        ctx.strokeStyle = "rgba(120,90,20,.4)"; ctx.stroke();
+      }
+      // 職業バッジ（頭上左）：農・土
+      var bx1 = cx - headR - 2.0 * u, by1 = headCy - headR - 0.4 * u;
+      ctx.beginPath(); ctx.arc(bx1, by1, 2.7 * u, 0, Math.PI * 2);
+      ctx.fillStyle = js.badge; ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 " + Math.max(7, 3.1 * u) + "px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(js.kanji, bx1, by1 + 0.2 * u);
+      // 合体した人は頭上右に金のバッジ（強さ）
+      if (w.power >= 2) {
+        var bx2 = cx + headR + 1.8 * u, by2 = headCy - headR - 0.4 * u;
+        ctx.beginPath(); ctx.arc(bx2, by2, 2.6 * u, 0, Math.PI * 2);
+        ctx.fillStyle = "#f2b63c"; ctx.fill();
+        ctx.strokeStyle = "#8a6410"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = "#4a3405";
+        ctx.font = "700 " + Math.max(7, 3.2 * u) + "px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(String(w.power), bx2, by2 + 0.2 * u);
+      }
+    }
+    function drawEffect(e) {
+      var p = tileTop(e.x, e.y);
+      if (e.merge) { // 合体・収穫のきらめき
+        for (var fi = 0; fi < 3; fi++) {
+          var fa = e.t * 5 + fi * 2.1, fr = 3 + e.t * 13;
+          ctx.beginPath();
+          ctx.moveTo(p.cx + Math.cos(fa) * fr * 0.35, p.cy - 3 + Math.sin(fa) * fr * 0.35);
+          ctx.lineTo(p.cx + Math.cos(fa) * fr, p.cy - 3 + Math.sin(fa) * fr);
+          ctx.strokeStyle = "rgba(255,214,96," + (1 - e.t) + ")"; ctx.lineWidth = 1.6; ctx.stroke();
+        }
+      }
+      var r = 4 + e.t * 14;
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = e.merge ? "rgba(240,180,40," + (1 - e.t) + ")" : "rgba(255,255,255," + (1 - e.t) + ")";
+      ctx.lineWidth = 2; ctx.stroke();
+    }
+    function drawSmoke(p) {
+      var a = Math.sin(Math.PI * Math.min(1, p.life / p.max)) * 0.34;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.dust ? "rgba(193,172,138," + a + ")" : "rgba(246,246,244," + a + ")";
+      ctx.fill();
+    }
+    function drawBird(b, t) {
+      var f = Math.sin(t * 9 + b.ph) * 3.2;
+      ctx.strokeStyle = "rgba(43,54,48,.75)"; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(b.x - 6, b.y + f * 0.4); ctx.quadraticCurveTo(b.x - 3, b.y - 2.5 - f, b.x, b.y);
+      ctx.quadraticCurveTo(b.x + 3, b.y - 2.5 - f, b.x + 6, b.y + f * 0.4);
+      ctx.stroke();
+    }
+
+    /* ================= 入力 ================= */
+    function pickTile(ev) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+      // 山の峰はタイルの上に突き出ているので、先に峰の三角形を調べる
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        if (terr[idx(x, y)] !== MOUNTAIN) continue;
+        var p = tileTop(x, y);
+        var apexY = p.cy - tileW * (0.72 + hash2(x, y) * 0.2);
+        if (my >= apexY && my <= p.cy + tileH * 0.3) {
+          var halfAt = (my - apexY) / Math.max(1, (p.cy + tileH * 0.3 - apexY)) * tileW * 0.36;
+          if (Math.abs(mx - p.cx) <= halfAt) return [x, y];
+        }
+      }
+      // 一番近い上面中心のタイル（ひし形メトリクス）
+      var best = null, bs = 1e9;
+      for (var y2 = 0; y2 < H; y2++) for (var x2 = 0; x2 < W; x2++) {
+        var p2 = tileTop(x2, y2);
+        var m = Math.abs(mx - p2.cx) / (tileW / 2) + Math.abs(my - p2.cy) / (tileH / 2);
+        if (m < bs) { bs = m; best = [x2, y2]; }
+      }
+      return bs <= 1.3 ? best : null;
+    }
+    var dragging = false, lastDragTile = null, lastDragTime = 0;
+    canvas.addEventListener("pointerdown", function (ev) {
+      if (gameOver) return;
+      canvas.setPointerCapture(ev.pointerId);
+      dragging = true;
+      var t = pickTile(ev);
+      if (t) { applyConvert(t[0], t[1]); lastDragTile = t; lastDragTime = performance.now(); updateHUD(); }
+    });
+    canvas.addEventListener("pointermove", function (ev) {
+      var t = pickTile(ev);
+      hover = t;
+      if (!dragging || gameOver || !t) return;
+      var now = performance.now();
+      var same = lastDragTile && lastDragTile[0] === t[0] && lastDragTile[1] === t[1];
+      if (!same || now - lastDragTime > 450) {
+        applyConvert(t[0], t[1]);
+        lastDragTile = t; lastDragTime = now; updateHUD();
+      }
+    });
+    canvas.addEventListener("pointerup", function () { dragging = false; });
+    canvas.addEventListener("pointercancel", function () { dragging = false; });
+    canvas.addEventListener("pointerleave", function () { hover = null; });
+
+    /* ================= ボタン ================= */
+    var toolBtns = document.querySelectorAll(".tool");
+    function selectTool(btn) {
+      toolTarget = parseInt(btn.getAttribute("data-terr"), 10);
+      toolBtns.forEach(function (o) { o.setAttribute("aria-pressed", o === btn ? "true" : "false"); });
+    }
+    toolBtns.forEach(function (b) {
+      b.addEventListener("click", function () { selectTool(b); });
+    });
+    function rotateView(dir) { // dir: +1=右へ90°, -1=左へ90°
+      rot = (rot + dir + 4) % 4;
+      terrainDirty = true; // 見かけの並びが変わるので地形レイヤーを描き直す
+      hover = null; lastDragTile = null;
+    }
+    var boardWrapEl = document.getElementById("boardWrap");
+    boardWrapEl.addEventListener("pointermove", function (ev) {
+      var r = boardWrapEl.getBoundingClientRect();
+      lastPtr = [ev.clientX - r.left, ev.clientY - r.top];
+    });
+    boardWrapEl.addEventListener("pointerleave", function () { lastPtr = null; });
+    document.getElementById("zoomBtn").addEventListener("click", function () {
+      zoom = zoom > 1 ? 1 : 3;
+      this.textContent = zoom > 1 ? "全体を表示" : "3倍に拡大";
+      this.setAttribute("aria-pressed", zoom > 1 ? "true" : "false");
+      resize(); centerView();
+    });
+    document.getElementById("rotLBtn").addEventListener("click", function () { rotateView(-1); });
+    document.getElementById("rotRBtn").addEventListener("click", function () { rotateView(1); });
+    document.addEventListener("keydown", function (ev) {
+      var map = { "1": PLAIN, "2": FOREST, "3": WATER, "4": MOUNTAIN };
+      if (map[ev.key] !== undefined) {
+        toolTarget = map[ev.key];
+        toolBtns.forEach(function (o) { o.setAttribute("aria-pressed", parseInt(o.getAttribute("data-terr"), 10) === toolTarget ? "true" : "false"); });
+      }
+      if (ev.key === "q" || ev.key === "Q") rotateView(-1);
+      if (ev.key === "e" || ev.key === "E" || ev.key === "r" || ev.key === "R") rotateView(1);
+      if (ev.key === " ") { ev.preventDefault(); togglePause(); }
+    });
+    function togglePause() {
+      if (gameOver) return;
+      paused = !paused;
+      var b = document.getElementById("pauseBtn");
+      b.setAttribute("aria-pressed", paused ? "true" : "false");
+      b.textContent = paused ? "再開する" : "一時停止";
+    }
+    document.getElementById("pauseBtn").addEventListener("click", togglePause);
+    document.getElementById("speedBtn").addEventListener("click", function () {
+      speed = speed === 1 ? 2 : 1;
+      this.textContent = "速度 ×" + speed;
+      this.setAttribute("aria-pressed", speed === 2 ? "true" : "false");
+    });
+    document.getElementById("restartBtn").addEventListener("click", reset);
+    document.getElementById("againBtn").addEventListener("click", reset);
+
+    /* ================= サイズ調整 ================= */
+    function resize() {
+      var wrap = document.getElementById("boardWrap");
+      var cw = wrap.clientWidth;
+      var dpr = window.devicePixelRatio || 1;
+      var fitW = cw / ((W + H) / 2 + 0.6); // 全景表示のときのタイル幅
+      tileW = fitW * zoom;
+      tileH = tileW / 2;
+      var worldW = (W + H) * tileW / 2 + tileW * 0.8;
+      var worldH = (W + H) * tileH / 2 + tileH * 2.2; // 上は山の峰ぶんの余白
+      canvas.style.width = worldW + "px";
+      canvas.style.height = worldH + "px";
+      canvas.width = Math.round(worldW * dpr);
+      canvas.height = Math.round(worldH * dpr);
+      originX = worldW / 2;
+      originY = tileH * 1.5;
+      if (zoom > 1) { // 拡大中は盤の中をスクロールして見回せる
+        wrap.style.overflow = "auto";
+        wrap.style.maxHeight = "78vh";
+      } else {
+        wrap.style.overflow = "hidden";
+        wrap.style.maxHeight = "";
+        wrap.scrollLeft = 0; wrap.scrollTop = 0;
+      }
+    }
+    function centerView() { // 村の開始地点が画面中央に来るようスクロールする
+      if (zoom <= 1) return;
+      var wrap = document.getElementById("boardWrap");
+      var p = tileTop(START_X, START_Y);
+      wrap.scrollLeft = clamp(p.cx - wrap.clientWidth / 2, 0, 1e9);
+      wrap.scrollTop = clamp(p.cy - wrap.clientHeight / 2, 0, 1e9);
+    }
+    window.addEventListener("resize", resize);
+
+    /* ================= 開始 ================= */
+    resize();
+    reset();
+    centerView();
+    requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
