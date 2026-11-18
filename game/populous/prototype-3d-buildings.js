@@ -8,7 +8,7 @@ const field=mat(0x9a8954),metal=mat(0x555e58);
 function box(parent,w,h,d,material,x,y,z,cast=true){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,z);m.castShadow=cast;m.receiveShadow=true;parent.add(m);return m;}
 function roof(parent,w,d,eave,ridge,material){
  const shape=new THREE.Shape();shape.moveTo(-w/2,0);shape.lineTo(0,ridge-eave);shape.lineTo(w/2,0);shape.closePath();
- const geo=new THREE.ExtrudeGeometry(shape,{depth:d,bevelEnabled:false});const m=new THREE.Mesh(geo,material);m.rotation.y=Math.PI/2;m.position.set(-d/2,eave,-w/2);m.castShadow=true;parent.add(m);return m;
+ const geo=new THREE.ExtrudeGeometry(shape,{depth:d,bevelEnabled:false});const m=new THREE.Mesh(geo,material);m.rotation.y=Math.PI/2;m.position.set(-d/2,eave,0);m.castShadow=true;parent.add(m);return m;
 }
 function door(parent,z=.58,y=.23){box(parent,.24,.46,.045,darkWood,0,y,z);}
 function windowPane(parent,x,y,z=.59){box(parent,.22,.24,.035,darkWood,x,y,z);box(parent,.16,.18,.04,glass,x,y,z+.018);box(parent,.025,.2,.045,wood,x,y,z+.04);box(parent,.18,.025,.045,wood,x,y,z+.04);}
