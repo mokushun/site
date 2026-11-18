@@ -142,48 +142,8 @@ for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
 }
 rocks.count=rockCount;rocks.castShadow=true;rocks.receiveShadow=true;world.add(rocks);
 
-// Village paths and cultivated plots.
-const pathMat=material(0xb5a078);
-function groundPath(points,width) {
-  const curve=new THREE.CatmullRomCurve3(points.map(([x,z])=>new THREE.Vector3(x,terrainHeight(x,z)+.035,z)));
-  const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(24,points.length*8),width,7,false),pathMat);
-  mesh.scale.y=.32;mesh.receiveShadow=true;world.add(mesh);
-}
-groundPath([[-1,1],[2,2],[4,4],[7,4],[9,2]],.22);
-groundPath([[1,1],[2,-2],[4,-4],[6,-5]],.16);
-const fieldMat=material(0x9b8b55);
-for(let f=0;f<3;f++){
-  const cx=8+f*2.3,cz=5+(f%2)*2;
-  const patch=new THREE.Group();
-  for(let row=0;row<5;row++){
-    const line=new THREE.Mesh(new THREE.BoxGeometry(1.55,.035,.045),fieldMat);
-    line.position.set(cx,terrainHeight(cx,cz+row*.22)+.07,cz+row*.22);line.rotation.y=-.12;patch.add(line);
-  }
-  world.add(patch);
-}
-
-// Distinctive timber-and-stone houses with gabled roofs, beams, doors and warm windows.
-const houses=new THREE.Group();world.add(houses);
-const wallMats=[0xd0bd91,0xbca77d,0xd9c9a5,0xa9a17f].map(c=>material(c));
-const roofMats=[0x75483a,0x5c493c,0x8a6045].map(c=>material(c));
-const woodMat=material(0x61452f),windowMat=new THREE.MeshStandardMaterial({color:0xffd58b,emissive:0x9a632a,emissiveIntensity:.35});
-function makeHouse(x,z,s=1,variant=0){
-  const y=terrainHeight(x,z),g=new THREE.Group();g.position.set(x,y,z);g.scale.setScalar(s);
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(1.35,.92,1.15),wallMats[variant%wallMats.length]);wall.position.y=.48;wall.castShadow=true;wall.receiveShadow=true;g.add(wall);
-  const roofGeo=new THREE.BufferGeometry();
-  const v=[-.78,.92,-.68,.78,.92,-.68,0,1.68,-.68,-.78,.92,.68,.78,.92,.68,0,1.68,.68,-.78,.92,-.68,-.78,.92,.68,0,1.68,.68,.78,.92,-.68,.78,.92,.68,0,1.68,.68];
-  const ids=[0,1,2,3,5,4,6,7,8,9,11,10];roofGeo.setAttribute('position',new THREE.Float32BufferAttribute(v,3));roofGeo.setIndex(ids);roofGeo.computeVertexNormals();
-  const roof=new THREE.Mesh(roofGeo,roofMats[variant%roofMats.length]);roof.castShadow=true;g.add(roof);
-  const door=new THREE.Mesh(new THREE.BoxGeometry(.22,.43,.035),woodMat);door.position.set(0,.22,.594);g.add(door);
-  for(const wx of [-.43,.43]){const win=new THREE.Mesh(new THREE.BoxGeometry(.19,.2,.035),windowMat);win.position.set(wx,.62,.594);g.add(win);}
-  const chimney=new THREE.Mesh(new THREE.BoxGeometry(.17,.48,.17),woodMat);chimney.position.set(.43,1.45,-.28);g.add(chimney);
-  houses.add(g);
-}
-[[-1,-1,1.05,0],[2,-1,.92,1],[-2,2,.9,2],[4,2,.82,0],[1,4,.78,1],[-5,-2,.72,3],[-4,4,.72,2],[6,-3,.7,0],[7,1,.72,1],[3,6,.66,2],[9,-1,.7,3]].forEach(p=>makeHouse(...p));
-const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.25,2.5,.12,48),material(0xb4a17b));
-plaza.position.set(0,terrainHeight(0,0)+.04,0);plaza.receiveShadow=true;world.add(plaza);
-const monument=new THREE.Mesh(new THREE.CylinderGeometry(.22,.35,1.2,8),material(0x9d9274));
-monument.position.set(0,terrainHeight(0,0)+.68,0);monument.castShadow=true;world.add(monument);
+import { createVillageArchitecture } from './prototype-3d-buildings.js';
+const villageArchitecture = createVillageArchitecture(THREE, world, terrainHeight);
 
 // Tiny villagers with simple walking motion.
 const people=new THREE.Group();world.add(people);
@@ -239,6 +199,7 @@ function animate(){
   requestAnimationFrame(animate);
   const dt=Math.min(.05,clock.getDelta());
   if(timeRunning){
+    villageArchitecture.update(dt);
     elapsed+=dt;
     villagers.forEach(v=>{
       v.a+=dt*v.speed;
