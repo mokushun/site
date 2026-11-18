@@ -1,3 +1,4 @@
+export function createVillageArchitecture(THREE,world,terrainHeight){
 const mat = (color, roughness=1, extra={}) => new THREE.MeshStandardMaterial({color,roughness,...extra});
 const walls=[0xd2bf99,0xbda77d,0xe0cfaa,0xa7a184,0xc5b49a].map(c=>mat(c));
 const roofs=[0x75483a,0x59483b,0x8b6044,0x68735b].map(c=>mat(c));
@@ -51,7 +52,6 @@ function watchtower(x,z,scale=1){
  const g=baseGroup(x,z,scale);const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.43,.62,2.7,8),stone);shaft.position.y=1.35;shaft.castShadow=true;g.add(shaft);box(g,1.15,.22,1.15,wood,0,2.45,0);
  const top=new THREE.Mesh(new THREE.ConeGeometry(.78,.8,4),roofs[0]);top.position.y=3;top.rotation.y=Math.PI/4;top.castShadow=true;g.add(top);for(let i=0;i<4;i++){const a=i*Math.PI/2;const slit=box(g,.09,.38,.045,darkWood,Math.sin(a)*.44,1.65,Math.cos(a)*.44);slit.rotation.y=a;}return g;
 }
-export function createVillageArchitecture(THREE,world,terrainHeight){
  const group=new THREE.Group();world.add(group);const animated=[];
  const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.25,2.5,.12,48),mat(0xb4a17b));plaza.position.set(0,terrainHeight(0,0)+.04,0);plaza.receiveShadow=true;world.add(plaza);
  const monument=new THREE.Mesh(new THREE.CylinderGeometry(.22,.35,1.2,8),stoneLight);monument.position.set(0,terrainHeight(0,0)+.68,0);monument.castShadow=true;world.add(monument);
