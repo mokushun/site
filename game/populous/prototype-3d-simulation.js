@@ -13,6 +13,21 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   let farmCount = 0, houseCount = 0, foodRate = 0, nextTick = 0;
   const buildings = [];
   const farms = [];
+  const constructionSites = [];
+  function createScaffold(x,z,type) {
+    const g=new THREE.Group();g.position.set(x,terrainHeight(x,z)+.03,z);
+    const wood=mat(0x9a7446),beam=mat(0xb18a58);
+    const w=type==='farm'?1.45:.82,d=type==='farm'?1.2:.72,h=type==='farm'?.85:1.35;
+    for(const sx of [-1,1])for(const sz of [-1,1]){
+      const post=new THREE.Mesh(new THREE.BoxGeometry(.07,h,.07),wood);
+      post.position.set(sx*w/2,h/2,sz*d/2);post.castShadow=true;g.add(post);
+    }
+    for(const y of [.35,h*.78]){
+      const beamX=new THREE.Mesh(new THREE.BoxGeometry(w+.12,.065,.065),beam);beamX.position.y=y;g.add(beamX);
+      const beamZ=new THREE.Mesh(new THREE.BoxGeometry(.065,.065,d+.12),beam);beamZ.position.y=y;g.add(beamZ);
+    }
+    world.add(g);return g;
+  }
   const rainCount = 360;
   const rainPositions = new Float32Array(rainCount * 3);
   for (let i = 0; i < rainCount; i++) {
@@ -35,16 +50,23 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const roofGeo = new THREE.ExtrudeGeometry(roofShape,{depth:1.18,bevelEnabled:false});
     const roof = new THREE.Mesh(roofGeo,roofMat); roof.rotation.y=Math.PI/2; roof.position.set(-.59,.78,0); roof.castShadow=true; g.add(roof);
     const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
-    world.add(g); buildings.push({x,z,type:'house'}); houseCount++;
+    g.visible=false;world.add(g);
+    const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:5});
+    buildings.push({x,z,type:'house'});houseCount++;
   }
   function buildFarm(x,z,fertility) {
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z)+.025, z);
     const plot = new THREE.Mesh(new THREE.BoxGeometry(2.5,.045,2.1),soilMat); plot.receiveShadow=true;g.add(plot);
+    const cropPlants=[];
     for(let row=0;row<5;row++) for(let col=0;col<6;col++){
-      const crop = new THREE.Mesh(new THREE.ConeGeometry(.075,.24+fertility*.16,5),cropMats[(row+col)%2]);
-      crop.position.set(-.95+col*.38,.14,-.72+row*.36);crop.castShadow=true;g.add(crop);
+      const baseHeight=.24+fertility*.16;
+      const crop = new THREE.Mesh(new THREE.ConeGeometry(.075,baseHeight,5),cropMats[(row+col)%2]);
+      crop.position.set(-.95+col*.38,baseHeight*.55,-.72+row*.36);crop.castShadow=true;g.add(crop);
+      cropPlants.push({mesh:crop,baseHeight,phase:(row*6+col)*.37});
     }
-    world.add(g); farms.push({x,z,fertility,group:g}); buildings.push({x,z,type:'farm'});farmCount++;
+    g.visible=false;world.add(g);
+    const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:5});
+    farms.push({x,z,fertility,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
     const cell = nearestCell(x,z); if(cell) cell.farm=true;
   }
   function nearestCell(x,z) { let best=null,dist=Infinity; for(const c of cells){const d=(c.x-x)**2+(c.z-z)**2;if(d<dist){dist=d;best=c;}}return best; }
@@ -89,7 +111,16 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   }
   function tick() {
     const avg=cells.reduce((s,c)=>s+c.fertility,0)/cells.length;
-    farms.forEach(f=>{const c=nearestCell(f.x,f.z);f.fertility=c?c.fertility:f.fertility;});
+    farms.forEach(f=>{
+      const c=nearestCell(f.x,f.z);f.fertility=c?c.fertility:f.fertility;
+      // Fertile soil produces taller, fuller-looking crops; poor soil leaves them short.
+      const growth=.55+f.fertility*1.35;
+      f.cropPlants.forEach(plant=>{
+        const height=plant.baseHeight*growth;
+        plant.mesh.scale.y=growth;
+        plant.mesh.position.y=height*.55;
+      });
+    });
     foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0);
     food=Math.max(0,food+foodRate*5-population*.72);
     if(food>population*4 && population<houseCount*8+24){population++;food-=population*.8;}
@@ -105,6 +136,11 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   }
   function update(dt) {
     elapsed+=dt;
+    for(let i=constructionSites.length-1;i>=0;i--){
+      const site=constructionSites[i];site.remaining-=dt;
+      // Reveal the finished structure after a short visible construction phase.
+      if(site.remaining<=0){site.building.visible=true;world.remove(site.scaffold);constructionSites.splice(i,1);}
+    }
     if(rainLeft>0){
       rainLeft-=dt;rain.visible=true;
       const p=rainGeo.attributes.position;
@@ -119,6 +155,8 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   buildFarm(8,7,.68);
   buildFarm(11,7,.62);
   buildHouse(8,-3);buildHouse(10,-3);buildHouse(12,-3);
+  // Starting village structures are already complete; construction visuals are for new growth.
+  constructionSites.forEach(site=>{site.building.visible=true;world.remove(site.scaffold);});constructionSites.length=0;
   updateTerrainColors();tick();
   return { update, setMode, startRain, handleClick, getStats:()=>({food,population,farmCount,houseCount}) };
 }
