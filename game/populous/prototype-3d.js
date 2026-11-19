@@ -169,7 +169,7 @@ for(let i=0;i<visibleVillagerLimit;i++){
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.28,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.095,9,8),skin);head.position.y=.54;g.add(head);
   // Residents circulate around the settlement in several loose rings.
-  const a=i*2.399963, r=2.5+(i%9)*.62, x=Math.cos(a)*r,z=Math.sin(a)*r;
+  const a=i*2.399963, r=2.5+(i%9)*.62, x=i===0?0:Math.cos(a)*r,z=i===0?0:Math.sin(a)*r;
   g.position.set(x,terrainHeight(x,z)+.06,z);g.visible=false;people.add(g);
   villagers.push({g,a,r,speed:.12+seeded(i,8)*.18,phase:i*.8});
 }
@@ -177,7 +177,7 @@ syncPopulation = population => {
   const visibleCount=Math.min(visibleVillagerLimit,Math.max(0,Math.round(population)));
   villagers.forEach((v,i)=>{v.g.visible=i<visibleCount;});
 };
-syncPopulation(24);
+syncPopulation(1);
 
 // Light atmospheric clouds, kept above the playable island.
 const clouds=new THREE.Group();scene.add(clouds);

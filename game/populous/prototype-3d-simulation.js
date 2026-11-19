@@ -9,7 +9,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const baseColors = terrain.geometry.attributes.color.array.slice();
   const colors = terrain.geometry.attributes.color;
   // Fertility is mapped to the nearest logical cell; the terrain mesh remains continuous.
-  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 125, population = 24;
+  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 8, population = 1;
   let farmCount = 0, houseCount = 0, foodRate = 0, nextTick = 0;
   const buildings = [];
   const farms = [];
@@ -75,7 +75,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     for(let z=-14;z<=14;z+=2)for(let x=-14;x<=14;x+=2){
       if(Math.hypot(x,z)<5 || Math.hypot(x,z)>17) continue;
       const cell=nearestCell(x,z); if(!cell || cell.farm && type==='farm') continue;
-      if(type==='farm' && cell.fertility<.58) continue;
+      if(type==='farm' && cell.fertility<(farmCount===0?.45:.58)) continue;
       if(type==='house' && Math.hypot(x,z)>11) continue;
       const near=buildings.some(b=>Math.hypot(b.x-x,b.z-z)<(type==='farm'?3.1:2.1));
       if(!near)candidates.push({x,z,score:type==='farm'?cell.fertility:Math.hypot(x,z)});
@@ -121,15 +121,16 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
         plant.mesh.position.y=height*.55;
       });
     });
-    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0);
+    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0)+(farmCount===0?population*.18:0);
     food=Math.max(0,food+foodRate*5-population*.72);
-    if(food>population*4 && population<houseCount*8+24){population++;food-=population*.8;}
-    else if(food<population*.55 && population>8){population--;food=Math.max(0,food-2);}
-    if(farmCount<Math.max(1,Math.floor(population/18)) && food>35){
-      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);buildFarm(p.x,p.z,c.fertility);onStatus('新しい農地が作られました');}
+    // The first person can forage, but lasting population growth requires housing.
+    if(houseCount>0 && food>population*4 && population<houseCount*8){population++;food-=population*.8;}
+    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
+    if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.floor(population/18)) && food>35)){
+      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);buildFarm(p.x,p.z,c.fertility);onStatus('最初の農地が作られました');}
     }
-    if(population>=houseCount*8+16 && food>45){
-      const p=availableSpot('house');if(p){buildHouse(p.x,p.z);food-=12;onStatus('人口増加に合わせて住宅が建ちました');}
+    if((houseCount===0 && farmCount>0 && food>15) || (houseCount>0 && population>=houseCount*8 && food>45)){
+      const p=availableSpot('house');if(p){buildHouse(p.x,p.z);food-=12;onStatus('新しい住宅が建ちました');}
     }
     updateTerrainColors();
     onStatus(null,{food:Math.floor(food),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0)});
@@ -151,12 +152,9 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     }
     nextTick+=dt;if(nextTick>=5){nextTick=0;tick();}
   }
-  // Seed a small farm so the food loop starts visibly.
-  buildFarm(8,7,.68);
-  buildFarm(11,7,.62);
-  buildHouse(8,-3);buildHouse(10,-3);buildHouse(12,-3);
-  // Starting village structures are already complete; construction visuals are for new growth.
-  constructionSites.forEach(site=>{site.building.visible=true;world.remove(site.scaffold);});constructionSites.length=0;
-  updateTerrainColors();tick();
+  // Start from an untouched landscape. The first resident must establish food production and shelter.
+  updateTerrainColors();
+  onStatus('文明のはじまり — 住民は一人。最初の農地を作ろう');
+  tick();
   return { update, setMode, startRain, handleClick, getStats:()=>({food,population,farmCount,houseCount}) };
 }
