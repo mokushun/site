@@ -52,13 +52,8 @@ function watchtower(x,z,scale=1){
  const g=baseGroup(x,z,scale);const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.43,.62,2.7,8),stone);shaft.position.y=1.35;shaft.castShadow=true;g.add(shaft);box(g,1.15,.22,1.15,wood,0,2.45,0);
  const top=new THREE.Mesh(new THREE.ConeGeometry(.78,.8,4),roofs[0]);top.position.y=3;top.rotation.y=Math.PI/4;top.castShadow=true;g.add(top);for(let i=0;i<4;i++){const a=i*Math.PI/2;const slit=box(g,.09,.38,.045,darkWood,Math.sin(a)*.44,1.65,Math.cos(a)*.44);slit.rotation.y=a;}return g;
 }
- const group=new THREE.Group();world.add(group);const animated=[];
- const plaza=new THREE.Mesh(new THREE.CylinderGeometry(2.25,2.5,.12,48),mat(0xb4a17b));plaza.position.set(0,terrainHeight(0,0)+.04,0);plaza.receiveShadow=true;world.add(plaza);
- const monument=new THREE.Mesh(new THREE.CylinderGeometry(.22,.35,1.2,8),stoneLight);monument.position.set(0,terrainHeight(0,0)+.68,0);monument.castShadow=true;world.add(monument);
- const items=[cottage(-1,-1,1.05,0),cottage(2,-1,.92,1),cottage(-2,2,.9,2),cottage(4,2,.82,0),cottage(1,4,.78,1),cottage(-5,-2,.72,3),cottage(-4,4,.72,2),cottage(6,-3,.7,0),cottage(7,1,.72,1),farmhouse(9,4,.85),granary(-8,2,.78),workshop(-8,-4,.82),windmill(12,-5,.9),meetingHall(5,8,.85),chapel(-10,7,.75),watchtower(14,3,.75)];
- items.forEach(item=>{if(item.group){group.add(item.group);animated.push(item);}else group.add(item);});
- for(let f=0;f<3;f++){const cx=9+f*1.35,cz=6+(f%2)*1.1;for(let row=0;row<5;row++){const line=new THREE.Mesh(new THREE.BoxGeometry(1.2,.035,.045),field);line.position.set(cx,terrainHeight(cx,cz+row*.2)+.07,cz+row*.2);line.rotation.y=-.12;group.add(line);}}
- const pathMat=mat(0xb5a078),paths=[[[-1,1],[2,2],[4,4],[7,4],[9,2]],[[1,1],[2,-2],[4,-4],[6,-5]],[[-4,3],[-6,4],[-8,6],[-10,7]]];
- for(const points of paths){const curve=new THREE.CatmullRomCurve3(points.map(([x,z])=>new THREE.Vector3(x,terrainHeight(x,z)+.035,z)));const path=new THREE.Mesh(new THREE.TubeGeometry(curve,48,.19,7,false),pathMat);path.scale.y=.32;path.receiveShadow=true;world.add(path);}
- return {group,update:dt=>animated.forEach(b=>b.animate(dt))};
+ const group=new THREE.Group();
+ world.add(group);
+ // The world begins empty. Houses and farms are created only by the simulation.
+ return {group,update:()=>{}};
 }

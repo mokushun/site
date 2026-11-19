@@ -133,7 +133,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       const p=availableSpot('house');if(p){buildHouse(p.x,p.z);food-=12;onStatus('新しい住宅が建ちました');}
     }
     updateTerrainColors();
-    onStatus(null,{food:Math.floor(food),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0)});
+    onStatus(null,{food:Math.floor(food),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house').map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z}))});
   }
   function update(dt) {
     elapsed+=dt;

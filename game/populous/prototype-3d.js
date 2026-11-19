@@ -146,6 +146,7 @@ import { createVillageArchitecture } from './prototype-3d-buildings.js';
 import { createWorldSimulation } from './prototype-3d-simulation.js';
 const villageArchitecture = createVillageArchitecture(THREE, world, terrainHeight);
 let syncPopulation = () => {};
+let syncActivities = () => {};
 const uiStatus = (message, stats) => {
   if (message) document.querySelector('#mode').textContent = message;
   if (stats) {
@@ -154,6 +155,7 @@ const uiStatus = (message, stats) => {
     document.querySelector('#farms').textContent = stats.farmCount;
     document.querySelector('#fertility').textContent = stats.fertility + '%';
     syncPopulation(stats.population);
+    syncActivities(stats);
   }
 };
 const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, uiStatus);
@@ -168,14 +170,19 @@ for(let i=0;i<visibleVillagerLimit;i++){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.28,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.095,9,8),skin);head.position.y=.54;g.add(head);
-  // Residents circulate around the settlement in several loose rings.
-  const a=i*2.399963, r=2.5+(i%9)*.62, x=i===0?0:Math.cos(a)*r,z=i===0?0:Math.sin(a)*r;
+  const x=0,z=0;
   g.position.set(x,terrainHeight(x,z)+.06,z);g.visible=false;people.add(g);
-  villagers.push({g,a,r,speed:.12+seeded(i,8)*.18,phase:i*.8});
+  villagers.push({g,body,speed:.55+seeded(i,8)*.25,phase:i*.8,routeStep:0,wait:0,target:null,task:'idle'});
 }
+let activityTargets={farms:[],houses:[],construction:[]};
 syncPopulation = population => {
   const visibleCount=Math.min(visibleVillagerLimit,Math.max(0,Math.round(population)));
   villagers.forEach((v,i)=>{v.g.visible=i<visibleCount;});
+};
+syncActivities = stats => {
+  activityTargets.farms=stats.farmLocations||[];
+  activityTargets.houses=stats.houseLocations||[];
+  activityTargets.construction=stats.constructionLocations||[];
 };
 syncPopulation(1);
 
@@ -226,12 +233,32 @@ function animate(){
     villageArchitecture.update(dt);
     simulation.update(dt);
     elapsed+=dt;
-    villagers.forEach(v=>{
+    villagers.forEach((v,i)=>{
       if(!v.g.visible)return;
-      v.a+=dt*v.speed;
-      const x=Math.cos(v.a)*v.r,z=Math.sin(v.a)*v.r;
-      v.g.position.set(x,terrainHeight(x,z)+.06+Math.abs(Math.sin(elapsed*5+v.phase))*.035,z);
-      v.g.rotation.y=-v.a;
+      // Each resident follows a small work route instead of endlessly orbiting the village.
+      const center={x:(i%5-2)*.7,z:Math.floor(i/5)*.65};
+      let workTarget;
+      if(i===0) workTarget=activityTargets.farms[0]||{x:4,z:2}; // foraging, then tending the first field
+      else if(i===1) workTarget=activityTargets.construction[0]||activityTargets.farms[0]||{x:3,z:-2}; // builder/helper
+      else if(i%3===0 && activityTargets.construction.length) workTarget=activityTargets.construction[i%activityTargets.construction.length];
+      else workTarget=activityTargets.houses.length?activityTargets.houses[i%activityTargets.houses.length]:{x:Math.cos(i*2.4)*3,z:Math.sin(i*2.4)*3};
+      const route=[center,workTarget];
+      if(!v.target){v.target=route[v.routeStep%route.length];}
+      const dx=v.target.x-v.g.position.x,dz=v.target.z-v.g.position.z,dist=Math.hypot(dx,dz);
+      if(v.wait>0){
+        v.wait=Math.max(0,v.wait-dt);
+        v.body.rotation.z=Math.sin(elapsed*2.5+v.phase)*.08;
+      }else if(dist<.22){
+        v.wait=v.routeStep%2===0?1.2:3.8;
+        v.routeStep++;
+        v.target=route[v.routeStep%route.length];
+      }else{
+        const step=Math.min(dist,v.speed*dt);
+        v.g.position.x+=dx/dist*step;v.g.position.z+=dz/dist*step;
+        v.g.rotation.y=Math.atan2(dx,dz);
+        v.body.position.y=.27+Math.abs(Math.sin(elapsed*8+v.phase))*.055;
+      }
+      v.g.position.y=terrainHeight(v.g.position.x,v.g.position.z)+.06;
     });
     // Population and settlement counts are now owned by the simulation module.
     const mins=Math.floor(elapsed/3);
