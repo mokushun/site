@@ -57,6 +57,16 @@ export class PhysicsWorld {
     return hit ? hit.timeOfImpact : null;
   }
 
+  // 下向きレイで当たった Collider 自体を返す（足場の特定用）。
+  castRayDownCollider(origin, maxDistance, excludeCollider) {
+    const ray = new RAPIER.Ray(origin, { x: 0, y: -1, z: 0 });
+    const hit = this.rapierWorld.castRay(
+      ray, maxDistance, true,
+      undefined, undefined, excludeCollider ?? undefined, undefined,
+    );
+    return hit ? hit.collider : null;
+  }
+
   dispose() {
     this.rapierWorld.free();
     this.rapierWorld = null;

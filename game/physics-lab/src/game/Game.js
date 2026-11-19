@@ -5,7 +5,14 @@ import { InputManager } from './InputManager.js';
 import { CameraController } from './CameraController.js';
 import { Player } from './Player.js';
 import { CheckpointManager } from './CheckpointManager.js';
+import { PlatformCarrier } from './PlatformCarrier.js';
 import { LabEnvironment } from '../objects/LabEnvironment.js';
+import { JumpPad } from '../objects/JumpPad.js';
+import { RotatingPlatform } from '../objects/RotatingPlatform.js';
+import { MovingPlatform } from '../objects/MovingPlatform.js';
+import { WindZone } from '../objects/WindZone.js';
+import { Magnet } from '../objects/Magnet.js';
+import { Seesaw } from '../objects/Seesaw.js';
 import { HUD } from '../ui/HUD.js';
 import { PauseMenu } from '../ui/PauseMenu.js';
 
@@ -20,6 +27,8 @@ export class Game {
     this.player = null;
     this.environment = null;
     this.checkpointManager = null;
+    this.platformCarrier = null;
+    this.gimmicks = [];
     this.inputManager = null;
     this.cameraController = null;
     this.pauseMenu = null;
@@ -66,6 +75,7 @@ export class Game {
 
     this.checkpointManager = new CheckpointManager(this.scene);
     this.setupCheckpoints();
+    this.setupGimmicks();
 
     this.inputManager = new InputManager(this.canvasElement);
     this.cameraController = new CameraController(this.camera, this.canvasElement);
@@ -108,6 +118,53 @@ export class Game {
     });
   }
 
+  // Phase 3: ギミック6種をルーム内の別々の区画に配置する（単体確認用）。
+  setupGimmicks() {
+    const world = this.physicsWorld;
+    const scene = this.scene;
+    this.platformCarrier = new PlatformCarrier(world);
+
+    // ジャンプ台 + 上空の到達プラットフォーム（北東）。
+    this.gimmicks.push(new JumpPad({ position: { x: 7, y: 0, z: -15 }, power: 13 }, scene));
+    const ledgeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x35586e, metalness: 0.5, roughness: 0.4,
+      emissive: 0x0a2436, emissiveIntensity: 0.5,
+    });
+    this.environment.addStaticBox({
+      size: { x: 4, y: 0.4, z: 4 },
+      position: { x: 7, y: 5.2, z: -15 },
+      material: ledgeMaterial,
+    });
+
+    // 回転床（西）。
+    const rotatingPlatform = new RotatingPlatform(world, {
+      position: { x: -12, y: 0.05, z: -5 }, radius: 3, thickness: 0.5, angularSpeed: 0.5,
+    }, scene);
+    this.gimmicks.push(rotatingPlatform);
+    this.platformCarrier.register(rotatingPlatform);
+
+    // 移動床（南、東西往復）。
+    const movingPlatform = new MovingPlatform(world, {
+      from: { x: -12, y: 1.0, z: 15 }, to: { x: 2, y: 1.0, z: 15 }, speed: 2.2, waitSeconds: 0.8,
+    }, scene);
+    this.gimmicks.push(movingPlatform);
+    this.platformCarrier.register(movingPlatform);
+
+    // 上昇気流（東）。
+    this.gimmicks.push(new WindZone({
+      center: { x: 13, y: 3, z: -9 }, size: { x: 4, y: 6, z: 4 },
+      direction: { x: 0, y: 1, z: 0 }, strength: 24,
+    }, scene));
+
+    // 磁力（南西隅、引力）。
+    this.gimmicks.push(new Magnet({
+      position: { x: -15, y: 1.0, z: 14 }, radius: 5.5, strength: 26, polarity: 'attract',
+    }, scene));
+
+    // シーソー（南東）。
+    this.gimmicks.push(new Seesaw(world, { position: { x: 9, y: 0, z: 16 } }, scene));
+  }
+
   buildLights() {
     const ambientLight = new THREE.AmbientLight(0x8fb8d8, 0.55);
     this.scene.add(ambientLight);
@@ -148,8 +205,19 @@ export class Game {
       z: cameraMove.z * cameraMove.strength,
     };
     this.player.applyMovement(fixedDeltaSeconds, moveDirection, wantsJump, wantsBoost);
+    for (const gimmick of this.gimmicks) {
+      if (typeof gimmick.preStep === 'function') {
+        gimmick.preStep(fixedDeltaSeconds, this.player);
+      }
+    }
+    if (this.platformCarrier) {
+      this.platformCarrier.applyCarry(this.player);
+    }
     this.physicsWorld.step();
     this.player.updateGrounded();
+    if (this.platformCarrier) {
+      this.platformCarrier.updateSupport(this.player);
+    }
 
     const newlyActivated = this.checkpointManager.update(this.player.getPosition());
     if (newlyActivated) {
@@ -163,6 +231,7 @@ export class Game {
 
   respawn(source) {
     const respawnPoint = this.checkpointManager.getRespawnPoint();
+    if (this.platformCarrier) this.platformCarrier.clearSupport();
     this.player.respawnTo(respawnPoint);
     this.cameraController.yawRadians = respawnPoint.yawRadians;
     this.cameraController.snapToTarget(this.player.getPosition());
@@ -227,6 +296,10 @@ export class Game {
     }
     if (this.state === 'playing') {
       this.player.syncMesh();
+      for (const gimmick of this.gimmicks) {
+        if (typeof gimmick.syncMesh === 'function') gimmick.syncMesh();
+        if (typeof gimmick.renderUpdate === 'function') gimmick.renderUpdate(frameDeltaSeconds);
+      }
       this.cameraController.update(frameDeltaSeconds, this.player.getPosition());
     }
     this.hud.updateStatus({
@@ -261,6 +334,10 @@ export class Game {
     if (this.inputManager) this.inputManager.dispose();
     if (this.cameraController) this.cameraController.dispose();
     if (this.player) this.player.dispose(this.scene);
+    for (const gimmick of this.gimmicks) {
+      if (typeof gimmick.dispose === 'function') gimmick.dispose(this.scene, this.physicsWorld);
+    }
+    this.gimmicks = [];
     if (this.checkpointManager) this.checkpointManager.dispose();
     if (this.environment) this.environment.dispose();
     if (this.physicsWorld) this.physicsWorld.dispose();
