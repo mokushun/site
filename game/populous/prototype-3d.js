@@ -222,8 +222,7 @@ function animate(){
       v.g.position.set(x,terrainHeight(x,z)+.06+Math.abs(Math.sin(elapsed*5+v.phase))*.035,z);
       v.g.rotation.y=-v.a;
     });
-    document.querySelector('#population').textContent=24+Math.floor(elapsed/42);
-    document.querySelector('#settlements').textContent=1+Math.floor(elapsed/150);
+    // Population and settlement counts are now owned by the simulation module.
     const mins=Math.floor(elapsed/3);
     document.querySelector('#clock').textContent='WORLD TIME · '+String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
   }
