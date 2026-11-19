@@ -1,0 +1,124 @@
+export function createWorldSimulation(THREE, world, terrain, terrainHeight, onStatus) {
+  const size = 40, step = 2, count = size / step;
+  const cells = [];
+  for (let z = 0; z < count; z++) for (let x = 0; x < count; x++) {
+    const wx = -20 + (x + .5) * step, wz = -20 + (z + .5) * step;
+    const seed = Math.abs(Math.sin(wx * 12.9898 + wz * 78.233) * 43758.5453) % 1;
+    cells.push({ x: wx, z: wz, fertility: .35 + seed * .38, moisture: .35 + seed * .25, farm: false });
+  }
+  const baseColors = terrain.geometry.attributes.color.array.slice();
+  const colors = terrain.geometry.attributes.color;
+  // Fertility is mapped to the nearest logical cell; the terrain mesh remains continuous.
+  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 125, population = 24;
+  let farmCount = 0, houseCount = 0, foodRate = 0, nextTick = 0;
+  const buildings = [];
+  const farms = [];
+  const rainCount = 360;
+  const rainPositions = new Float32Array(rainCount * 3);
+  for (let i = 0; i < rainCount; i++) {
+    rainPositions[i*3] = (Math.random() - .5) * 48;
+    rainPositions[i*3+1] = Math.random() * 18 + 2;
+    rainPositions[i*3+2] = (Math.random() - .5) * 48;
+  }
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+  const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xc9e8f4, size: .075, transparent: true, opacity: .8 }));
+  rain.visible = false; world.add(rain);
+
+  const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 });
+  const wallMat = mat(0xcbb895), roofMat = mat(0x80513d), woodMat = mat(0x62452f);
+  const soilMat = mat(0x765c39), cropMats = [mat(0x81994d), mat(0x9eaa5a)];
+  function buildHouse(x, z) {
+    const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z), z);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.2,.78,1.05), wallMat); base.position.y=.4; base.castShadow=true; base.receiveShadow=true; g.add(base);
+    const roofShape = new THREE.Shape(); roofShape.moveTo(-.72,0); roofShape.lineTo(0,.65); roofShape.lineTo(.72,0); roofShape.closePath();
+    const roofGeo = new THREE.ExtrudeGeometry(roofShape,{depth:1.18,bevelEnabled:false});
+    const roof = new THREE.Mesh(roofGeo,roofMat); roof.rotation.y=Math.PI/2; roof.position.set(-.59,.78,0); roof.castShadow=true; g.add(roof);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
+    world.add(g); buildings.push({x,z,type:'house'}); houseCount++;
+  }
+  function buildFarm(x,z,fertility) {
+    const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z)+.025, z);
+    const plot = new THREE.Mesh(new THREE.BoxGeometry(2.5,.045,2.1),soilMat); plot.receiveShadow=true;g.add(plot);
+    for(let row=0;row<5;row++) for(let col=0;col<6;col++){
+      const crop = new THREE.Mesh(new THREE.ConeGeometry(.075,.24+fertility*.16,5),cropMats[(row+col)%2]);
+      crop.position.set(-.95+col*.38,.14,-.72+row*.36);crop.castShadow=true;g.add(crop);
+    }
+    world.add(g); farms.push({x,z,fertility,group:g}); buildings.push({x,z,type:'farm'});farmCount++;
+    const cell = nearestCell(x,z); if(cell) cell.farm=true;
+  }
+  function nearestCell(x,z) { let best=null,dist=Infinity; for(const c of cells){const d=(c.x-x)**2+(c.z-z)**2;if(d<dist){dist=d;best=c;}}return best; }
+  function availableSpot(type) {
+    const candidates=[];
+    for(let z=-14;z<=14;z+=2)for(let x=-14;x<=14;x+=2){
+      if(Math.hypot(x,z)<5 || Math.hypot(x,z)>17) continue;
+      const cell=nearestCell(x,z); if(!cell || cell.farm && type==='farm') continue;
+      if(type==='farm' && cell.fertility<.58) continue;
+      if(type==='house' && Math.hypot(x,z)>11) continue;
+      const near=buildings.some(b=>Math.hypot(b.x-x,b.z-z)<(type==='farm'?3.1:2.1));
+      if(!near)candidates.push({x,z,score:type==='farm'?cell.fertility:Math.hypot(x,z)});
+    }
+    candidates.sort((a,b)=>type==='farm'?b.score-a.score:a.score-b.score);
+    return candidates[0] || null;
+  }
+  function updateTerrainColors() {
+    const pos=terrain.geometry.attributes.position;
+    for(let i=0;i<colors.count;i++){
+      const x=pos.getX(i),z=pos.getZ(i); const c=nearestCell(x,z);
+      const fertility=c?c.fertility:.4;
+      const base=new THREE.Color(baseColors[i*3],baseColors[i*3+1],baseColors[i*3+2]);
+      const fertile=new THREE.Color(0x9ab66b);
+      base.lerp(fertile,Math.max(0,fertility-.42)*.42);
+      colors.setXYZ(i,base.r,base.g,base.b);
+    }
+    colors.needsUpdate=true;
+  }
+  function affectFertility(x,z,amount,radius=5) {
+    for(const c of cells){const d=Math.hypot(c.x-x,c.z-z);if(d<radius){const w=1-d/radius;c.fertility=THREE.MathUtils.clamp(c.fertility+amount*w,.08,1);c.moisture=THREE.MathUtils.clamp(c.moisture+amount*.55*w,0,1);}}
+    updateTerrainColors();
+    onStatus('土地の肥沃度を高めた。農地が育ちやすくなります');
+  }
+  function startRain() { rainLeft=16;rain.visible=true;mode='observe';onStatus('雨が降り始めた。土壌の水分と肥沃度が上がります'); }
+  function setMode(next) { mode=next;onStatus(mode==='fertility'?'肥沃度を変える場所をクリックしてください':'観察モード'); }
+  function handleClick(event,camera,canvas) {
+    if(mode!=='fertility')return false;
+    const rect=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
+    const ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);const hit=ray.intersectObject(terrain,false)[0];
+    if(hit){affectFertility(hit.point.x,hit.point.z,.28,5.5);mode='observe';return true;}
+    return false;
+  }
+  function tick() {
+    const avg=cells.reduce((s,c)=>s+c.fertility,0)/cells.length;
+    farms.forEach(f=>{const c=nearestCell(f.x,f.z);f.fertility=c?c.fertility:f.fertility;});
+    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0);
+    food=Math.max(0,food+foodRate*5-population*.72);
+    if(food>population*4 && population<houseCount*8+24){population++;food-=population*.8;}
+    else if(food<population*.55 && population>8){population--;food=Math.max(0,food-2);}
+    if(farmCount<Math.max(1,Math.floor(population/18)) && food>35){
+      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);buildFarm(p.x,p.z,c.fertility);onStatus('新しい農地が作られました');}
+    }
+    if(population>=houseCount*8+16 && food>45){
+      const p=availableSpot('house');if(p){buildHouse(p.x,p.z);food-=12;onStatus('人口増加に合わせて住宅が建ちました');}
+    }
+    updateTerrainColors();
+    onStatus(null,{food:Math.floor(food),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0)});
+  }
+  function update(dt) {
+    elapsed+=dt;
+    if(rainLeft>0){
+      rainLeft-=dt;rain.visible=true;
+      const p=rainGeo.attributes.position;
+      for(let i=0;i<rainCount;i++){let y=p.getY(i)-dt*13;if(y<0){y=14+Math.random()*5;p.setX(i,(Math.random()-.5)*48);p.setZ(i,(Math.random()-.5)*48);}p.setY(i,y);}
+      p.needsUpdate=true;
+      for(const c of cells){c.moisture=Math.min(1,c.moisture+dt*.012);c.fertility=Math.min(1,c.fertility+dt*.0018);}
+      if(rainLeft<=0){rain.visible=false;updateTerrainColors();onStatus('雨が止んだ');}
+    }
+    nextTick+=dt;if(nextTick>=5){nextTick=0;tick();}
+  }
+  // Seed a small farm so the food loop starts visibly.
+  buildFarm(8,7,.68);
+  buildFarm(11,7,.62);
+  buildHouse(8,-3);buildHouse(10,-3);buildHouse(12,-3);
+  updateTerrainColors();tick();
+  return { update, setMode, startRain, handleClick, getStats:()=>({food,population,farmCount,houseCount}) };
+}

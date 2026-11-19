@@ -143,7 +143,18 @@ for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
 rocks.count=rockCount;rocks.castShadow=true;rocks.receiveShadow=true;world.add(rocks);
 
 import { createVillageArchitecture } from './prototype-3d-buildings.js';
+import { createWorldSimulation } from './prototype-3d-simulation.js';
 const villageArchitecture = createVillageArchitecture(THREE, world, terrainHeight);
+const uiStatus = (message, stats) => {
+  if (message) document.querySelector('#mode').textContent = message;
+  if (stats) {
+    document.querySelector('#food').textContent = stats.food;
+    document.querySelector('#population').textContent = stats.population;
+    document.querySelector('#farms').textContent = stats.farmCount;
+    document.querySelector('#fertility').textContent = stats.fertility + '%';
+  }
+};
+const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, uiStatus);
 
 // Tiny villagers with simple walking motion.
 const people=new THREE.Group();world.add(people);
@@ -191,6 +202,9 @@ renderer.domElement.addEventListener('wheel',e=>{distance*=Math.exp(e.deltaY*.00
 renderer.domElement.addEventListener('dblclick',home);
 document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='q'){yaw-=Math.PI/2;updateCamera();}if(e.key.toLowerCase()==='e'){yaw+=Math.PI/2;updateCamera();}});
 document.querySelector('#home').addEventListener('click',home);
+document.querySelector('#fertilityTool').addEventListener('click',()=>simulation.setMode('fertility'));
+document.querySelector('#rain').addEventListener('click',()=>simulation.startRain());
+renderer.domElement.addEventListener('click',e=>simulation.handleClick(e,camera,renderer.domElement));
 document.querySelector('#rotate').addEventListener('click',e=>{autoRotate=!autoRotate;e.currentTarget.textContent='自動回転：'+(autoRotate?'ON':'OFF');});
 document.querySelector('#pause').addEventListener('click',e=>{timeRunning=!timeRunning;e.currentTarget.textContent='時間：'+(timeRunning?'進行':'停止');document.querySelector('#mode').textContent=timeRunning?'観察モード — 村の一日が流れています':'観察モード — 時間を止めています';});
 
@@ -200,6 +214,7 @@ function animate(){
   const dt=Math.min(.05,clock.getDelta());
   if(timeRunning){
     villageArchitecture.update(dt);
+    simulation.update(dt);
     elapsed+=dt;
     villagers.forEach(v=>{
       v.a+=dt*v.speed;

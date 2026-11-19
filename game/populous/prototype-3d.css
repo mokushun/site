@@ -14,3 +14,8 @@ button:hover{filter:brightness(1.1);transform:translateY(-1px)}button:focus-visi
 #clock{position:fixed;z-index:2;right:22px;bottom:91px;color:#fff;font-size:11px;letter-spacing:.06em;text-shadow:0 2px 7px #102019;pointer-events:none}
 #credit{position:fixed;left:20px;bottom:92px;color:#e7e6d6a8;font-size:10px;pointer-events:none}
 @media(max-width:680px){.hud{top:8px;left:8px;right:8px}.panel{padding:9px 11px}.stats{gap:10px}.stats b{font-size:16px}.controls{left:8px;right:8px;bottom:8px;flex-direction:column;align-items:stretch}.help,#credit{display:none}#clock{right:14px;bottom:83px}}
+
+.stats{gap:16px}.stats b{font-size:19px}
+.buttons button{white-space:nowrap}
+button.active{background:#8fb77b;color:#17291f}
+@media(max-width:680px){.stats{gap:8px}.stats b{font-size:15px}.buttons{justify-content:center}.buttons button{padding:8px 9px;font-size:11px}}
