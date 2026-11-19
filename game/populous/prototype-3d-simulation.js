@@ -1,4 +1,4 @@
-export function createWorldSimulation(THREE, world, terrain, terrainHeight, onStatus) {
+export function createWorldSimulation(THREE, world, terrain, terrainHeight, onStatus, farmEnvironment = () => ({land:true,slope:0,treeClearance:99,rockClearance:99,waterDistance:4})) {
   const size = 40, step = 2, count = size / step;
   const cells = [];
   for (let z = 0; z < count; z++) for (let x = 0; x < count; x++) {
@@ -67,7 +67,8 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     }
     g.visible=false;world.add(g);
     const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:5});
-    farms.push({x,z,fertility,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
+    const site=farmEnvironment(x,z);
+    farms.push({x,z,fertility,waterDistance:site.waterDistance??8,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
     const cell = nearestCell(x,z); if(cell) cell.farm=true;
   }
   function nearestCell(x,z) { let best=null,dist=Infinity; for(const c of cells){const d=(c.x-x)**2+(c.z-z)**2;if(d<dist){dist=d;best=c;}}return best; }
@@ -76,10 +77,20 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     for(let z=-14;z<=14;z+=2)for(let x=-14;x<=14;x+=2){
       if(Math.hypot(x,z)<5 || Math.hypot(x,z)>17) continue;
       const cell=nearestCell(x,z); if(!cell || cell.farm && type==='farm') continue;
-      if(type==='farm' && cell.fertility<(farmCount===0?.45:.58)) continue;
+      if(type==='farm'){
+        if(cell.fertility<(farmCount===0?.45:.58)) continue;
+        const site=farmEnvironment(x,z);
+        if(!site.land || site.slope>.2 || site.treeClearance<2.5 || site.rockClearance<1.8) continue;
+        if(site.waterDistance<.8 || site.waterDistance>8.5) continue;
+      }
       if(type==='house' && Math.hypot(x,z)>11) continue;
       const near=buildings.some(b=>Math.hypot(b.x-x,b.z-z)<(type==='farm'?3.1:2.1));
-      if(!near)candidates.push({x,z,score:type==='farm'?cell.fertility:Math.hypot(x,z)});
+      if(!near){
+        const site=type==='farm'?farmEnvironment(x,z):null;
+        const waterBonus=site?Math.max(0,1-Math.abs(site.waterDistance-3.2)/5.3):0;
+        const flatBonus=site?Math.max(0,1-site.slope/.2):0;
+        candidates.push({x,z,score:type==='farm'?cell.fertility*.55+waterBonus*.25+flatBonus*.2:Math.hypot(x,z)});
+      }
     }
     candidates.sort((a,b)=>type==='farm'?b.score-a.score:a.score-b.score);
     return candidates[0] || null;
@@ -122,7 +133,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
         plant.mesh.position.y=height*.55;
       });
     });
-    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0)+(farmCount===0?population*.18:0);
+    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6+Math.max(0,1-f.waterDistance/9)*.65),0)+(farmCount===0?population*.18:0);
     wood=Math.min(80,wood+population*.22*5);
     food=Math.max(0,food+foodRate*5-population*.72);
     // The first person can forage, but lasting population growth requires housing.
@@ -132,7 +143,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     }
     else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
     if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.ceil((population+1)/5)) && food>35 && wood>=4)){
-      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('木材を使って農地が作られました');}
+      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('水辺に近い平地に農地が作られました');}
     }
     const farmCapacity=Math.max(1,farmCount)*5;
     const needsHouse=(houseCount===0 && farmCount>0 && food>15 && wood>=8) ||

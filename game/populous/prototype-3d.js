@@ -113,6 +113,7 @@ const broad= broadMats.map(m=>new THREE.InstancedMesh(broadGeo,m,maxTrees));
 const pines= pineMats.map(m=>new THREE.InstancedMesh(pineGeo,m,maxTrees));
 const broadCounts=broad.map(()=>0), pineCounts=pines.map(()=>0);
 const dummy=new THREE.Object3D(); let treeCount=0;
+const treePositions=[];
 for(let z=-22;z<=22;z+=.72) for(let x=-22;x<=22;x+=.72) {
   if(treeCount>=maxTrees || !onLand(x,z) || Math.hypot(x,z)<6.5) continue;
   const chance=seeded(x*2.1,z*2.1);
@@ -121,6 +122,7 @@ for(let z=-22;z<=22;z+=.72) for(let x=-22;x<=22;x+=.72) {
     const px=x+(seeded(x+2,z)-.5)*.4,pz=z+(seeded(x,z+3)-.5)*.4;
     if(!onLand(px,pz)||Math.hypot(px,pz)<7) continue;
     const y=terrainHeight(px,pz),s=.72+seeded(x+7,z+9)*.78;
+    treePositions.push({x:px,z:pz});
     dummy.position.set(px,y+.32*s,pz);dummy.scale.set(s,s,s);dummy.rotation.set(0,seeded(z,x)*6,0);dummy.updateMatrix();trunks.setMatrixAt(treeCount,dummy.matrix);
     const pine=seeded(x+13,z+5)>.56;
     const foliage=pine?pines:broad,counts=pine?pineCounts:broadCounts,mi=Math.floor(seeded(x+5,z+15)*foliage.length),slot=counts[mi]++;
@@ -135,10 +137,11 @@ for(let i=0;i<pines.length;i++){pines[i].count=pineCounts[i];pines[i].castShadow
 // Rocky ridges and scattered boulders.
 const rockGeo=new THREE.DodecahedronGeometry(.7,0),rockMat=material(0x858779);
 const rocks=new THREE.InstancedMesh(rockGeo,rockMat,95);let rockCount=0;
+const rockPositions=[];
 for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
   if(rockCount>=95||!onLand(x,z)||Math.hypot(x,z)<8)continue;
   const h=terrainHeight(x,z);
-  if(h>.72&&seeded(x+33,z-8)>.48){dummy.position.set(x,h+.18,z);dummy.scale.set(.6+seeded(x,z)*.9,.45+seeded(z,x)*.55,.55+seeded(x+4,z)*.7);dummy.rotation.set(seeded(x,z+4),seeded(z+4,x)*6,seeded(x+3,z)*.3);dummy.updateMatrix();rocks.setMatrixAt(rockCount++,dummy.matrix);}
+  if(h>.72&&seeded(x+33,z-8)>.48){rockPositions.push({x,z});dummy.position.set(x,h+.18,z);dummy.scale.set(.6+seeded(x,z)*.9,.45+seeded(z,x)*.55,.55+seeded(x+4,z)*.7);dummy.rotation.set(seeded(x,z+4),seeded(z+4,x)*6,seeded(x+3,z)*.3);dummy.updateMatrix();rocks.setMatrixAt(rockCount++,dummy.matrix);}
 }
 rocks.count=rockCount;rocks.castShadow=true;rocks.receiveShadow=true;world.add(rocks);
 
@@ -159,7 +162,19 @@ const uiStatus = (message, stats) => {
     syncActivities(stats);
   }
 };
-const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, uiStatus);
+const farmEnvironment = (x,z) => {
+  const slope = Math.max(
+    Math.abs(terrainHeight(x+1,z)-terrainHeight(x-1,z)),
+    Math.abs(terrainHeight(x,z+1)-terrainHeight(x,z-1))
+  ) / 2;
+  const treeClearance = treePositions.reduce((d,p)=>Math.min(d,Math.hypot(p.x-x,p.z-z)),Infinity);
+  const rockClearance = rockPositions.reduce((d,p)=>Math.min(d,Math.hypot(p.x-x,p.z-z)),Infinity);
+  const lakeClearance = Math.min(...lakeDefs.map(l => Math.max(0,(Math.sqrt(((x-l.x)/l.rx)**2+((z-l.z)/l.rz)**2)-1)*Math.min(l.rx,l.rz))));
+  const riverClearance = Math.max(0,riverDistance(x,z)-.57);
+  const waterDistance = Math.min(lakeClearance,riverClearance);
+  return {land:onLand(x,z),slope,treeClearance,rockClearance,waterDistance};
+};
+const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, uiStatus, farmEnvironment);
 
 // Tiny villagers with simple walking motion.
 const people=new THREE.Group();world.add(people);
