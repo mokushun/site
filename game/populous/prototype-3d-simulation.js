@@ -9,7 +9,8 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const baseColors = terrain.geometry.attributes.color.array.slice();
   const colors = terrain.geometry.attributes.color;
   // Fertility is mapped to the nearest logical cell; the terrain mesh remains continuous.
-  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 8, population = 1;
+  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 8, wood = 10, population = 1;
+  const births = [];
   let farmCount = 0, houseCount = 0, foodRate = 0, nextTick = 0;
   const buildings = [];
   const farms = [];
@@ -52,7 +53,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
     g.visible=false;world.add(g);
     const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:5});
-    buildings.push({x,z,type:'house'});houseCount++;
+    buildings.push({x,z,type:'house',occupants:houseCount===0?1:0});houseCount++;
   }
   function buildFarm(x,z,fertility) {
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z)+.025, z);
@@ -122,18 +123,29 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       });
     });
     foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6),0)+(farmCount===0?population*.18:0);
+    wood=Math.min(80,wood+population*.22*5);
     food=Math.max(0,food+foodRate*5-population*.72);
     // The first person can forage, but lasting population growth requires housing.
-    if(houseCount>0 && food>population*4 && population<houseCount*8){population++;food-=population*.8;}
-    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
-    if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.floor(population/18)) && food>35)){
-      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);buildFarm(p.x,p.z,c.fertility);onStatus('最初の農地が作られました');}
+    if(houseCount>0 && food>population*4 && population<houseCount*3){
+      const home=buildings.filter(b=>b.type==='house').find(b=>(b.occupants||0)<3);
+      if(home){home.occupants=(home.occupants||0)+1;population++;food-=population*.8;births.push({x:home.x,z:home.z,house:buildings.indexOf(home)});}
     }
-    if((houseCount===0 && farmCount>0 && food>15) || (houseCount>0 && population>=houseCount*8 && food>45)){
-      const p=availableSpot('house');if(p){buildHouse(p.x,p.z);food-=12;onStatus('新しい住宅が建ちました');}
+    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
+    if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.ceil((population+1)/5)) && food>35 && wood>=4)){
+      const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('木材を使って農地が作られました');}
+    }
+    const farmCapacity=Math.max(1,farmCount)*5;
+    const needsHouse=(houseCount===0 && farmCount>0 && food>15 && wood>=8) ||
+      (houseCount>0 && population>=houseCount*3 && farmCapacity>=population && food>35 && wood>=14);
+    if(needsHouse){
+      const p=availableSpot('house');
+      if(p){
+        if(houseCount>0)wood-=14;else wood=Math.max(0,wood-8);
+        food-=12;buildHouse(p.x,p.z);onStatus('木材と食料が集まり、新しい住宅が建ちました');
+      }
     }
     updateTerrainColors();
-    onStatus(null,{food:Math.floor(food),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house').map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z}))});
+    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house').map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z})),forestLocation:{x:17,z:-8}});
   }
   function update(dt) {
     elapsed+=dt;
@@ -156,5 +168,5 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   updateTerrainColors();
   onStatus('文明のはじまり — 住民は一人。最初の農地を作ろう');
   tick();
-  return { update, setMode, startRain, handleClick, getStats:()=>({food,population,farmCount,houseCount}) };
+  return { update, setMode, startRain, handleClick, getStats:()=>({food,wood,population,farmCount,houseCount}) };
 }

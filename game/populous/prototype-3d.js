@@ -151,10 +151,11 @@ const uiStatus = (message, stats) => {
   if (message) document.querySelector('#mode').textContent = message;
   if (stats) {
     document.querySelector('#food').textContent = stats.food;
+    document.querySelector('#wood').textContent = stats.wood;
     document.querySelector('#population').textContent = stats.population;
     document.querySelector('#farms').textContent = stats.farmCount;
     document.querySelector('#fertility').textContent = stats.fertility + '%';
-    syncPopulation(stats.population);
+    syncPopulation(stats.population, stats.births || []);
     syncActivities(stats);
   }
 };
@@ -170,19 +171,38 @@ for(let i=0;i<visibleVillagerLimit;i++){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.28,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.095,9,8),skin);head.position.y=.54;g.add(head);
+  const arms=[];
+  for(const side of [-1,1]){
+    const arm=new THREE.Group();arm.position.set(side*.13,.39,0);
+    const limb=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.22,6),skin);limb.position.y=-.08;limb.rotation.z=side*.18;arm.add(limb);g.add(arm);arms.push(arm);
+  }
+  const axe=new THREE.Group();
+  const handle=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.34,5),material(0x68472f));handle.position.y=.13;axe.add(handle);
+  const blade=new THREE.Mesh(new THREE.BoxGeometry(.15,.11,.035),material(0x929b9a));blade.position.set(.065,.27,0);axe.add(blade);
+  axe.position.set(.17,.25,.02);arms[1].add(axe);
   const x=0,z=0;
   g.position.set(x,terrainHeight(x,z)+.06,z);g.visible=false;people.add(g);
-  villagers.push({g,body,speed:.55+seeded(i,8)*.25,phase:i*.8,routeStep:0,wait:0,target:null,task:'idle'});
+  villagers.push({g,body,arms,axe,speed:.55+seeded(i,8)*.25,phase:i*.8,routeStep:0,wait:0,target:null,task:'idle'});
 }
 let activityTargets={farms:[],houses:[],construction:[]};
-syncPopulation = population => {
+let previousVisibleCount=0;
+syncPopulation = (population, birthList=[]) => {
   const visibleCount=Math.min(visibleVillagerLimit,Math.max(0,Math.round(population)));
   villagers.forEach((v,i)=>{v.g.visible=i<visibleCount;});
+  for(let i=previousVisibleCount;i<visibleCount;i++){
+    const newborn=birthList[i-previousVisibleCount];
+    if(newborn){
+      villagers[i].g.position.set(newborn.x,terrainHeight(newborn.x,newborn.z)+.06,newborn.z+.78);
+      villagers[i].target=null;villagers[i].routeStep=0;villagers[i].wait=1.5;
+    }
+  }
+  previousVisibleCount=visibleCount;
 };
 syncActivities = stats => {
   activityTargets.farms=stats.farmLocations||[];
   activityTargets.houses=stats.houseLocations||[];
   activityTargets.construction=stats.constructionLocations||[];
+  activityTargets.forest=stats.forestLocation||{x:17,z:-8};
 };
 syncPopulation(1);
 
@@ -235,28 +255,34 @@ function animate(){
     elapsed+=dt;
     villagers.forEach((v,i)=>{
       if(!v.g.visible)return;
-      // Each resident follows a small work route instead of endlessly orbiting the village.
-      const center={x:(i%5-2)*.7,z:Math.floor(i/5)*.65};
-      let workTarget;
-      if(i===0) workTarget=activityTargets.farms[0]||{x:4,z:2}; // foraging, then tending the first field
-      else if(i===1) workTarget=activityTargets.construction[0]||activityTargets.farms[0]||{x:3,z:-2}; // builder/helper
-      else if(i%3===0 && activityTargets.construction.length) workTarget=activityTargets.construction[i%activityTargets.construction.length];
-      else workTarget=activityTargets.houses.length?activityTargets.houses[i%activityTargets.houses.length]:{x:Math.cos(i*2.4)*3,z:Math.sin(i*2.4)*3};
-      const route=[center,workTarget];
-      if(!v.target){v.target=route[v.routeStep%route.length];}
+      // Assign visible jobs: farming, logging, building, and carrying.
+      const home=activityTargets.houses.length?activityTargets.houses[i%activityTargets.houses.length]:{x:0,z:0};
+      let workTarget,job;
+      if(i%4===0){workTarget=activityTargets.farms[i%Math.max(1,activityTargets.farms.length)]||{x:4,z:2};job='farm';}
+      else if(i%4===1){workTarget=activityTargets.forest;job='logging';}
+      else if(i%4===2){workTarget=activityTargets.construction[0]||activityTargets.farms[0]||{x:3,z:-2};job='build';}
+      else{workTarget=activityTargets.construction[0]||activityTargets.farms[0]||activityTargets.forest;job='carry';}
+      const route=[home,workTarget];
+      if(!v.target){v.target=route[v.routeStep%2];}
       const dx=v.target.x-v.g.position.x,dz=v.target.z-v.g.position.z,dist=Math.hypot(dx,dz);
       if(v.wait>0){
         v.wait=Math.max(0,v.wait-dt);
-        v.body.rotation.z=Math.sin(elapsed*2.5+v.phase)*.08;
-      }else if(dist<.22){
-        v.wait=v.routeStep%2===0?1.2:3.8;
-        v.routeStep++;
-        v.target=route[v.routeStep%route.length];
+        v.body.rotation.z=job==='farm'?.18:job==='logging'?-.12:0;
+        const swing=Math.sin(elapsed*(job==='logging'?9:job==='farm'?5:6)+v.phase);
+        v.arms[0].rotation.x=job==='farm'?swing*.75:0;
+        v.arms[1].rotation.x=job==='logging'?Math.max(0,swing)*1.8:job==='farm'?-swing*.55:job==='build'?swing*.6:0;
+        v.axe.visible=job==='logging';
+      }else if(dist<.28){
+        v.wait=v.routeStep%2===0?1.0:3.5;
+        v.routeStep=(v.routeStep+1)%2;
+        v.target=route[v.routeStep];
+        v.body.rotation.z=0;v.arms.forEach(a=>a.rotation.x=0);
       }else{
         const step=Math.min(dist,v.speed*dt);
         v.g.position.x+=dx/dist*step;v.g.position.z+=dz/dist*step;
         v.g.rotation.y=Math.atan2(dx,dz);
         v.body.position.y=.27+Math.abs(Math.sin(elapsed*8+v.phase))*.055;
+        v.body.rotation.z=0;v.arms[0].rotation.x=Math.sin(elapsed*8+v.phase)*.45;v.arms[1].rotation.x=-v.arms[0].rotation.x;v.axe.visible=job==='logging';
       }
       v.g.position.y=terrainHeight(v.g.position.x,v.g.position.z)+.06;
     });
