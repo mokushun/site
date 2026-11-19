@@ -226,7 +226,8 @@ function animate(){
     villageArchitecture.update(dt);
     simulation.update(dt);
     elapsed+=dt;
-    villagers.forEach(v=>{\n      if(!v.g.visible)return;
+    villagers.forEach(v=>{
+      if(!v.g.visible)return;
       v.a+=dt*v.speed;
       const x=Math.cos(v.a)*v.r,z=Math.sin(v.a)*v.r;
       v.g.position.set(x,terrainHeight(x,z)+.06+Math.abs(Math.sin(elapsed*5+v.phase))*.035,z);
