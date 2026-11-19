@@ -22,12 +22,19 @@ export class HUD {
     this.boostFillElement = document.getElementById('hud-boost-fill');
     this.boostLabelElement = document.getElementById('hud-boost-label');
     this.notifyElement = document.getElementById('hud-notify');
+    this.stageLabelElement = document.querySelector('.hud-phase');
     this.debugUpdateCounter = 0;
     this.notifyTimeoutId = null;
   }
 
   hideLoading() {
     if (this.loadingElement) this.loadingElement.style.display = 'none';
+  }
+
+  setStageLabel(text) {
+    if (this.stageLabelElement) {
+      this.stageLabelElement.textContent = text;
+    }
   }
 
   setHintVisible(visible) {

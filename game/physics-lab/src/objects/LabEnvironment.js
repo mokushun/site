@@ -27,18 +27,42 @@ function makeGridFloorTexture() {
 }
 
 export class LabEnvironment {
-  constructor(physicsWorld, scene) {
+  // 第1ステージの部屋は buildTestRoom() で構築する。Phase 4 以降は
+  // StageLoader がデータからプリミティブを積み上げる使い方もする。
+  constructor(physicsWorld, scene, { buildRoom = true } = {}) {
     this.physicsWorld = physicsWorld;
     this.scene = scene;
     this.meshes = [];
     this.staticBodies = [];
 
+    if (buildRoom) this.buildTestRoom();
+  }
+
+  buildTestRoom() {
     this.buildFloor();
     this.buildWalls();
     this.buildSteps();
     this.buildRamp();
     this.buildPillars();
     this.buildTestBlocks();
+  }
+
+  addStaticCylinder({ radius, height, position, material, physicsFriction = 0.9 }) {
+    const geometry = new THREE.CylinderGeometry(radius, radius, height, 24);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(position.x, position.y, position.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    if (this.scene) this.scene.add(mesh);
+    this.meshes.push(mesh);
+    const entry = this.physicsWorld.createStaticCylinder({
+      halfHeight: height / 2,
+      radius,
+      position,
+      friction: physicsFriction,
+    });
+    this.staticBodies.push(entry);
+    return mesh;
   }
 
   addStaticBox({ size, position, rotationEuler = null, material, physicsFriction = 0.9 }) {
@@ -50,7 +74,7 @@ export class LabEnvironment {
     }
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    this.scene.add(mesh);
+    if (this.scene) this.scene.add(mesh);
     this.meshes.push(mesh);
 
     let rotationQuat = null;
@@ -208,7 +232,7 @@ export class LabEnvironment {
 
   dispose() {
     for (const mesh of this.meshes) {
-      this.scene.remove(mesh);
+      if (this.scene) this.scene.remove(mesh);
       if (mesh.geometry) mesh.geometry.dispose();
     }
     for (const entry of this.staticBodies) {

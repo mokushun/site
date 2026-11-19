@@ -6,13 +6,8 @@ import { CameraController } from './CameraController.js';
 import { Player } from './Player.js';
 import { CheckpointManager } from './CheckpointManager.js';
 import { PlatformCarrier } from './PlatformCarrier.js';
-import { LabEnvironment } from '../objects/LabEnvironment.js';
-import { JumpPad } from '../objects/JumpPad.js';
-import { RotatingPlatform } from '../objects/RotatingPlatform.js';
-import { MovingPlatform } from '../objects/MovingPlatform.js';
-import { WindZone } from '../objects/WindZone.js';
-import { Magnet } from '../objects/Magnet.js';
-import { Seesaw } from '../objects/Seesaw.js';
+import { StageLoader } from './StageLoader.js';
+import { STAGES } from '../data/stages.js';
 import { HUD } from '../ui/HUD.js';
 import { PauseMenu } from '../ui/PauseMenu.js';
 
@@ -25,9 +20,14 @@ export class Game {
     this.hud = new HUD();
     this.physicsWorld = null;
     this.player = null;
-    this.environment = null;
     this.checkpointManager = null;
     this.platformCarrier = null;
+    this.stageLoader = null;
+    this.currentStageIndex = 0;
+    this.goal = null;
+    this.crystals = [];
+    this.goalReached = false;
+    this.goalTimerSeconds = 0;
     this.gimmicks = [];
     this.inputManager = null;
     this.cameraController = null;
@@ -61,7 +61,7 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x050a14);
-    this.scene.fog = new THREE.Fog(0x050a14, 45, 95);
+    this.scene.fog = new THREE.Fog(0x050a14, 55, 150);
 
     this.camera = new THREE.PerspectiveCamera(
       60, window.innerWidth / window.innerHeight, 0.1, 300,
@@ -69,17 +69,12 @@ export class Game {
 
     this.buildLights();
 
-    this.environment = new LabEnvironment(this.physicsWorld, this.scene);
     this.player = new Player(this.physicsWorld, this.scene);
     this.player.updateGrounded();
 
     this.checkpointManager = new CheckpointManager(this.scene);
-    this.setupCheckpoints();
-    this.setupGimmicks();
-
     this.inputManager = new InputManager(this.canvasElement);
     this.cameraController = new CameraController(this.camera, this.canvasElement);
-    this.cameraController.snapToTarget(this.player.getPosition());
 
     this.pauseMenu = new PauseMenu({
       onResume: () => this.resumeGame(true),
@@ -94,75 +89,59 @@ export class Game {
       onRender: (frameDeltaSeconds) => this.renderFrame(frameDeltaSeconds),
     });
 
+    // URL の ?stage=N（1始まり）で開始ステージを指定できる。
+    let initialStageIndex = 0;
+    const stageParam = Number.parseInt(new URLSearchParams(window.location.search).get('stage') ?? '', 10);
+    if (Number.isFinite(stageParam) && stageParam >= 1 && stageParam <= STAGES.length) {
+      initialStageIndex = stageParam - 1;
+    }
+    this.loadStage(initialStageIndex);
+
     this.hud.hideLoading();
     this.hud.setHintVisible(true);
   }
 
-  setupCheckpoints() {
-    // 初期位置も最初のチェックポイントとして扱う。
-    this.checkpointManager.addCheckpoint({
-      id: 'cp-start', name: 'スタート地点',
-      position: { x: 0, y: 0, z: 6 }, yawRadians: 0,
+  // ステージをデータから読み込む（Phase 4）。前のステージは破棄する。
+  loadStage(stageIndex) {
+    if (this.stageLoader) {
+      this.stageLoader.dispose();
+      this.stageLoader = null;
+    }
+    this.checkpointManager.dispose();
+    this.platformCarrier = new PlatformCarrier(this.physicsWorld);
+    this.stageLoader = new StageLoader(this.physicsWorld, this.scene);
+    const loaded = this.stageLoader.load(STAGES[stageIndex], this.checkpointManager);
+    this.gimmicks = loaded.gimmicks;
+    this.goal = loaded.goal;
+    this.crystals = loaded.crystals;
+    for (const gimmick of this.gimmicks) {
+      if (gimmick.collider && typeof gimmick.applyCarry === 'function') {
+        this.platformCarrier.register(gimmick);
+      }
+    }
+    this.currentStageIndex = stageIndex;
+    this.elapsedSeconds = 0;
+    this.respawnCount = 0;
+    this.goalReached = false;
+    this.goalTimerSeconds = 0;
+
+    const start = loaded.playerStart;
+    this.player.respawnTo({
+      x: start.position.x, y: start.position.y, z: start.position.z,
+      yawRadians: start.yawRadians,
     });
-    this.checkpointManager.addCheckpoint({
-      id: 'cp-north', name: '北エリア',
-      position: { x: 0, y: 0, z: -10 }, yawRadians: Math.PI,
-    });
-    this.checkpointManager.addCheckpoint({
-      id: 'cp-steps', name: 'ステップ上段',
-      position: { x: -8, y: 1.9, z: -17 }, yawRadians: Math.PI,
-    });
-    this.checkpointManager.addCheckpoint({
-      id: 'cp-southeast', name: '南東エリア',
-      position: { x: 12, y: 0, z: 12 }, yawRadians: -Math.PI / 4,
-    });
-  }
+    this.cameraController.yawRadians = start.yawRadians;
+    this.cameraController.pitchRadians = 0.32;
+    this.cameraController.snapToTarget(this.player.getPosition());
+    this.hud.setStageLabel(`STAGE ${stageIndex + 1} / ${STAGES.length}: ${loaded.stageName}`);
 
-  // Phase 3: ギミック6種をルーム内の別々の区画に配置する（単体確認用）。
-  setupGimmicks() {
-    const world = this.physicsWorld;
-    const scene = this.scene;
-    this.platformCarrier = new PlatformCarrier(world);
-
-    // ジャンプ台 + 上空の到達プラットフォーム（北東）。
-    this.gimmicks.push(new JumpPad({ position: { x: 7, y: 0, z: -15 }, power: 13 }, scene));
-    const ledgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x35586e, metalness: 0.5, roughness: 0.4,
-      emissive: 0x0a2436, emissiveIntensity: 0.5,
-    });
-    this.environment.addStaticBox({
-      size: { x: 4, y: 0.4, z: 4 },
-      position: { x: 7, y: 5.2, z: -15 },
-      material: ledgeMaterial,
-    });
-
-    // 回転床（西）。
-    const rotatingPlatform = new RotatingPlatform(world, {
-      position: { x: -12, y: 0.05, z: -5 }, radius: 3, thickness: 0.5, angularSpeed: 0.5,
-    }, scene);
-    this.gimmicks.push(rotatingPlatform);
-    this.platformCarrier.register(rotatingPlatform);
-
-    // 移動床（南、東西往復）。
-    const movingPlatform = new MovingPlatform(world, {
-      from: { x: -12, y: 1.0, z: 15 }, to: { x: 2, y: 1.0, z: 15 }, speed: 2.2, waitSeconds: 0.8,
-    }, scene);
-    this.gimmicks.push(movingPlatform);
-    this.platformCarrier.register(movingPlatform);
-
-    // 上昇気流（東）。
-    this.gimmicks.push(new WindZone({
-      center: { x: 13, y: 3, z: -9 }, size: { x: 4, y: 6, z: 4 },
-      direction: { x: 0, y: 1, z: 0 }, strength: 24,
-    }, scene));
-
-    // 磁力（南西隅、引力）。
-    this.gimmicks.push(new Magnet({
-      position: { x: -15, y: 1.0, z: 14 }, radius: 5.5, strength: 26, polarity: 'attract',
-    }, scene));
-
-    // シーソー（南東）。
-    this.gimmicks.push(new Seesaw(world, { position: { x: 9, y: 0, z: 16 } }, scene));
+    // ステージ切替時はポーズを解除してすぐ遊べる状態にする。
+    if (this.state === 'paused') {
+      this.state = 'playing';
+      this.inputManager.enabled = true;
+      this.pauseMenu.hide();
+    }
+    this.inputManager.clearTransientQueues();
   }
 
   buildLights() {
@@ -222,6 +201,13 @@ export class Game {
     const newlyActivated = this.checkpointManager.update(this.player.getPosition());
     if (newlyActivated) {
       this.hud.showNotification(`チェックポイント到達 — ${newlyActivated.name}`);
+    }
+
+    if (this.goal && !this.goalReached && this.goal.checkReached(this.player.getPosition())) {
+      this.goalReached = true;
+      this.goalTimerSeconds = 1.4;
+      const stageName = STAGES[this.currentStageIndex].name;
+      this.hud.showNotification(`GOAL! — ${stageName} クリア`);
     }
 
     if (this.player.hasFallenBelow()) {
@@ -294,12 +280,25 @@ export class Game {
     if (this.inputManager.consumePauseToggle()) {
       this.togglePause();
     }
+    const stageSelect = this.inputManager.consumeStageSelect();
+    if (stageSelect !== null && stageSelect !== this.currentStageIndex) {
+      this.loadStage(stageSelect);
+    }
+    // ゴール後は少し置いてから次のステージへ（最後なら最初に戻る）。
+    if (this.goalReached) {
+      this.goalTimerSeconds -= frameDeltaSeconds;
+      if (this.goalTimerSeconds <= 0) {
+        this.loadStage((this.currentStageIndex + 1) % STAGES.length);
+      }
+    }
     if (this.state === 'playing') {
       this.player.syncMesh();
       for (const gimmick of this.gimmicks) {
         if (typeof gimmick.syncMesh === 'function') gimmick.syncMesh();
         if (typeof gimmick.renderUpdate === 'function') gimmick.renderUpdate(frameDeltaSeconds);
       }
+      if (this.goal) this.goal.renderUpdate(frameDeltaSeconds);
+      for (const crystal of this.crystals) crystal.renderUpdate(frameDeltaSeconds);
       this.cameraController.update(frameDeltaSeconds, this.player.getPosition());
     }
     this.hud.updateStatus({
@@ -334,12 +333,9 @@ export class Game {
     if (this.inputManager) this.inputManager.dispose();
     if (this.cameraController) this.cameraController.dispose();
     if (this.player) this.player.dispose(this.scene);
-    for (const gimmick of this.gimmicks) {
-      if (typeof gimmick.dispose === 'function') gimmick.dispose(this.scene, this.physicsWorld);
-    }
+    if (this.stageLoader) this.stageLoader.dispose();
     this.gimmicks = [];
     if (this.checkpointManager) this.checkpointManager.dispose();
-    if (this.environment) this.environment.dispose();
     if (this.physicsWorld) this.physicsWorld.dispose();
     if (this.renderer) this.renderer.dispose();
   }

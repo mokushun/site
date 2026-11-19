@@ -7,6 +7,7 @@ export class InputManager {
     this.jumpQueued = false;
     this.respawnQueued = false;
     this.pauseToggleQueued = false;
+    this.stageSelectQueued = null;
     this.enabled = true;
 
     this.boundKeyDown = (keyboardEvent) => this.handleKeyDown(keyboardEvent);
@@ -37,6 +38,12 @@ export class InputManager {
     }
     if (keyboardEvent.code === 'KeyR' && !keyboardEvent.repeat) {
       this.respawnQueued = true;
+    }
+    if (keyboardEvent.code.startsWith('Digit') && !keyboardEvent.repeat) {
+      const digit = Number.parseInt(keyboardEvent.code.slice(5), 10);
+      if (digit >= 1 && digit <= 5) {
+        this.stageSelectQueued = digit - 1;
+      }
     }
     this.pressedKeys.add(keyboardEvent.code);
   }
@@ -81,10 +88,17 @@ export class InputManager {
     return queued;
   }
 
+  consumeStageSelect() {
+    const selected = this.stageSelectQueued;
+    this.stageSelectQueued = null;
+    return selected;
+  }
+
   // ポーズ遷移時に溜まった入力を持ち越さない。
   clearTransientQueues() {
     this.jumpQueued = false;
     this.respawnQueued = false;
+    this.stageSelectQueued = null;
     this.pressedKeys.clear();
   }
 
