@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:physics": "node tests/physics.test.mjs"
+    "test:physics": "node tests/physics.test.mjs",
+    "test:phase2": "node tests/phase2.test.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",

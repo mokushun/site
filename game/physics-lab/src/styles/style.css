@@ -59,6 +59,13 @@ html, body {
   margin-top: 2px;
 }
 
+#hud-progress {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #ffd75e;
+  margin-top: 4px;
+}
+
 #hud-debug {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -66,6 +73,69 @@ html, body {
   margin-top: 6px;
   white-space: pre;
 }
+
+#hud-status {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 10px 14px;
+  background: rgba(6, 20, 32, 0.55);
+  border: 1px solid rgba(57, 213, 240, 0.35);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  min-width: 150px;
+}
+
+.hud-status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.hud-status-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--lab-dim);
+  align-self: center;
+}
+
+#hud-boost {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  width: 190px;
+  padding: 9px 12px;
+  background: rgba(6, 20, 32, 0.5);
+  border: 1px solid rgba(57, 213, 240, 0.2);
+  border-radius: 6px;
+}
+
+#hud-boost-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--lab-dim);
+  margin-bottom: 6px;
+}
+
+#hud-boost-bar {
+  height: 10px;
+  background: rgba(57, 213, 240, 0.15);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#hud-boost-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--lab-cyan);
+  border-radius: 5px;
+  transition: width 0.08s linear;
+}
+
+#hud-boost-fill.hud-boost-active { background: #ffd75e; }
+#hud-boost-fill.hud-boost-empty { background: #c4453c; }
 
 #hud-controls {
   position: absolute;
@@ -78,6 +148,23 @@ html, body {
   border-radius: 6px;
   border: 1px solid rgba(57, 213, 240, 0.2);
 }
+
+#hud-notify {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  transform: translateX(-50%);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #ffd75e;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  white-space: nowrap;
+}
+
+#hud-notify.hud-notify-visible { opacity: 1; }
 
 #hud-hint {
   position: absolute;
@@ -120,4 +207,57 @@ html, body {
   border: 1px solid rgba(255, 120, 120, 0.5);
   border-radius: 8px;
   white-space: pre-wrap;
+}
+
+#pause-menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 8, 16, 0.62);
+  backdrop-filter: blur(3px);
+  z-index: 10;
+}
+
+#pause-menu[hidden] { display: none; }
+
+.pause-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  padding: 28px 34px;
+  background: rgba(6, 20, 32, 0.92);
+  border: 1px solid rgba(57, 213, 240, 0.5);
+  border-radius: 10px;
+  min-width: 320px;
+  text-align: center;
+}
+
+.pause-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--lab-cyan);
+  margin-bottom: 6px;
+}
+
+.pause-panel button {
+  font: inherit;
+  font-size: 15px;
+  color: var(--lab-text);
+  background: rgba(57, 213, 240, 0.12);
+  border: 1px solid rgba(57, 213, 240, 0.45);
+  border-radius: 6px;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+
+.pause-panel button:hover { background: rgba(57, 213, 240, 0.28); }
+
+.pause-note {
+  font-size: 12px;
+  color: var(--lab-dim);
+  margin-top: 4px;
 }

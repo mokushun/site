@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PHYSICS LAB — Phase 1</title>
+<title>PHYSICS LAB — Phase 2</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./src/styles/style.css">
 <!--
@@ -29,15 +29,34 @@
   <div id="hud">
     <div id="hud-title">
       <div class="hud-game-name">PHYSICS LAB</div>
-      <div class="hud-phase">PHASE 1 — BASIC PHYSICS</div>
+      <div class="hud-phase">STAGE: TEST LAB — PHASE 2</div>
+      <div id="hud-progress">CHECKPOINT 1 / 4</div>
       <div id="hud-debug">initializing…</div>
     </div>
-    <div id="hud-controls">
-      WASD / 矢印キー: 移動 &nbsp; Space: ジャンプ &nbsp; マウス: 視点 &nbsp; Esc: 視点ロック解除
+    <div id="hud-status">
+      <div class="hud-status-row"><span class="hud-status-label">TIME</span><span id="hud-time">00:00.0</span></div>
+      <div class="hud-status-row"><span class="hud-status-label">RESPAWN</span><span id="hud-respawn">0</span></div>
     </div>
+    <div id="hud-boost">
+      <div id="hud-boost-label">BOOST (Shift)</div>
+      <div id="hud-boost-bar"><div id="hud-boost-fill"></div></div>
+    </div>
+    <div id="hud-controls">
+      WASD / 矢印キー: 移動 &nbsp; Space: ジャンプ &nbsp; Shift: ブースト &nbsp; R: リスポーン &nbsp; Esc / P: ポーズ &nbsp; マウス: 視点
+    </div>
+    <div id="hud-notify"></div>
     <div id="hud-hint">クリックで視点ロック（マウス視点）<br><span class="hud-hint-sub">ロックしなくても WASD で移動できます</span></div>
     <div id="hud-loading">実験施設を初期化しています…</div>
     <div id="hud-error" hidden></div>
+  </div>
+
+  <div id="pause-menu" hidden>
+    <div class="pause-panel">
+      <div class="pause-title">PAUSED</div>
+      <button id="pause-resume" type="button">再開する（Esc / P）</button>
+      <button id="pause-respawn" type="button">チェックポイントから再開</button>
+      <div class="pause-note">ポーズ中はタイマーと物理演算が止まります</div>
+    </div>
   </div>
 </div>
 <script type="module" src="./src/main.js"></script>

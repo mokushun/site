@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { RAPIER } from './PhysicsWorld.js';
+import { BoostController, BOOST_SETTINGS } from './BoostController.js';
 
 // プレイヤー球体。Rapier の Dynamic RigidBody + 球 Collider を持ち、
 // 速度ステアリングで操作する（操作性優先。現実の物理の完全再現は狙わない）。
 export const BALL_RADIUS = 0.5;
+export const FALL_THRESHOLD_Y = -10; // これより下に落ちたら落下リスポーン
 export const PLAYER_SETTINGS = {
   maxSpeed: 8,          // 水平速度の上限 [m/s]
   groundAccelRate: 14,   // 地上での目標速度への接近率 [1/s]
@@ -22,6 +24,7 @@ export class Player {
     this.physicsWorld = physicsWorld;
     this.radius = BALL_RADIUS;
     this.isGrounded = false;
+    this.boost = new BoostController();
 
     const settings = PLAYER_SETTINGS;
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
@@ -65,6 +68,7 @@ export class Player {
     const bandMesh = new THREE.Mesh(bandGeometry, bandMaterial);
     bandMesh.rotation.x = Math.PI / 2;
     sphereMesh.add(bandMesh);
+    this.bandMaterial = bandMaterial;
 
     const dotGeometry = new THREE.SphereGeometry(0.09, 12, 10);
     const dotMesh = new THREE.Mesh(dotGeometry, bandMaterial);
@@ -95,14 +99,23 @@ export class Player {
     return this.isGrounded;
   }
 
+  hasFallenBelow(thresholdY = FALL_THRESHOLD_Y) {
+    return this.getPosition().y < thresholdY;
+  }
+
   // 物理ステップ前に呼ぶ。moveDirection はワールド空間の希望移動方向
   // （正規化済み、強さ 0..1 を掛けたもの）。cameraRelative で計算済みのこと。
-  applyMovement(fixedDeltaSeconds, moveDirection, wantsJump) {
+  applyMovement(fixedDeltaSeconds, moveDirection, wantsJump, wantsBoost = false) {
     const velocity = this.body.linvel();
     const settings = PLAYER_SETTINGS;
-    const targetVelocityX = moveDirection.x * settings.maxSpeed;
-    const targetVelocityZ = moveDirection.z * settings.maxSpeed;
-    const accelRate = this.isGrounded ? settings.groundAccelRate : settings.airAccelRate;
+    const hasMoveInput = Math.hypot(moveDirection.x, moveDirection.z) > 0.01;
+    const isBoosting = this.boost.update(fixedDeltaSeconds, wantsBoost, hasMoveInput);
+
+    const currentMaxSpeed = isBoosting ? BOOST_SETTINGS.boostMaxSpeed : settings.maxSpeed;
+    const targetVelocityX = moveDirection.x * currentMaxSpeed;
+    const targetVelocityZ = moveDirection.z * currentMaxSpeed;
+    let accelRate = this.isGrounded ? settings.groundAccelRate : settings.airAccelRate;
+    if (isBoosting && this.isGrounded) accelRate = BOOST_SETTINGS.boostAccelRate;
     const blendFactor = 1 - Math.exp(-accelRate * fixedDeltaSeconds);
     const nextVelocityX = velocity.x + (targetVelocityX - velocity.x) * blendFactor;
     const nextVelocityZ = velocity.z + (targetVelocityZ - velocity.z) * blendFactor;
@@ -112,6 +125,23 @@ export class Player {
       nextVelocityY = settings.jumpSpeed;
     }
     this.body.setLinvel({ x: nextVelocityX, y: nextVelocityY, z: nextVelocityZ }, true);
+
+    // ブースト中は帯を明るくする（見た目のフィードバック）。
+    if (this.bandMaterial) {
+      this.bandMaterial.emissiveIntensity = isBoosting ? 3.2 : 1.4;
+    }
+  }
+
+  // チェックポイントへの復帰。位置を移し、線速度・角速度をゼロにする。
+  respawnTo(respawnPoint) {
+    this.body.setTranslation(
+      { x: respawnPoint.x, y: respawnPoint.y, z: respawnPoint.z }, true,
+    );
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    this.updateGrounded();
+    this.syncMesh();
   }
 
   syncMesh() {
