@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHYSICS LAB — Phase 1</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./src/styles/style.css">
+<!--
+  配信方式: site リポジトリの既存ルール（ビルドなし静的ファイル）に合わせ、
+  依存ライブラリはバージョン固定の CDN から ES Modules で読み込む。
+  ローカル開発では `npm install && npm run dev`（Vite）でも同じソースが動く。
+  その場合 Vite が node_modules から解決するため importmap は使われない。
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.21.0/dist/rapier.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud">
+    <div id="hud-title">
+      <div class="hud-game-name">PHYSICS LAB</div>
+      <div class="hud-phase">PHASE 1 — BASIC PHYSICS</div>
+      <div id="hud-debug">initializing…</div>
+    </div>
+    <div id="hud-controls">
+      WASD / 矢印キー: 移動 &nbsp; Space: ジャンプ &nbsp; マウス: 視点 &nbsp; Esc: 視点ロック解除
+    </div>
+    <div id="hud-hint">クリックで視点ロック（マウス視点）<br><span class="hud-hint-sub">ロックしなくても WASD で移動できます</span></div>
+    <div id="hud-loading">実験施設を初期化しています…</div>
+    <div id="hud-error" hidden></div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
