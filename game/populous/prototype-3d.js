@@ -277,11 +277,29 @@ for(const l of lakeDefs) {
   }
   const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,lakeWaterLevel,l.z); waterGroup.add(mesh);
 }
-const riverPoints=[];
-for(let x=-23;x<=23;x+=.5) riverPoints.push(new THREE.Vector3(x,terrainHeight(x,riverZ(x))+.015,riverZ(x)));
-const riverCurve=new THREE.CatmullRomCurve3(riverPoints);
-const river=new THREE.Mesh(new THREE.TubeGeometry(riverCurve,180,.36,8,false),waterMat);
-waterGroup.add(river);
+// River: a flat ribbon sunk into the carved channel. The old raised tube
+// (radius .36 centred on the channel bottom) bulged above the banks and read
+// as floating, especially among trees. The ribbon follows the channel bottom
+// +.17, so the banks occlude its edges and it sits in the terrain.
+{
+  const xs=[];
+  for(let x=-23;x<=23;x+=.5) xs.push(x);
+  const posArr=new Float32Array(xs.length*2*3), uvArr=new Float32Array(xs.length*2*2), idx=[];
+  xs.forEach((x,i)=>{
+    const z=riverZ(x), dz=(riverZ(x+.25)-riverZ(x-.25))/.5;
+    const inv=1/Math.hypot(1,dz), px=-dz*inv, pz=inv, hw=.55;
+    const y=terrainHeight(x,z)+.17;
+    posArr.set([x+px*hw,y,z+pz*hw, x-px*hw,y,z-pz*hw], i*6);
+    uvArr.set([x*.35,0, x*.35,1], i*4);
+    if(i>0){ const a=(i-1)*2; idx.push(a,a+2,a+1, a+1,a+2,a+3); }
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(posArr,3));
+  g.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  waterGroup.add(new THREE.Mesh(g,waterMat));
+}
 
 // Forests: varied broadleaf crowns and slender conifers, all instanced for performance.
 const trunkGeo=new THREE.CylinderGeometry(.075,.13,.72,7);
