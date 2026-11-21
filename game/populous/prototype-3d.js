@@ -242,8 +242,8 @@ if(HIGH){
   waterScroll.push({tex:oceanNormals,sx:0.006,sy:0.004});
 }
 const waterGroup=new THREE.Group(); world.add(waterGroup);
-// Lake water embeds slightly into the basin and fades out where the surface
-// meets or rises above the terrain so no floating disc edge appears.
+// Lake water sits cleanly inside the basin and fades out toward the rim so no
+// separate foam plane or floating disc edge ever appears.
 const lakeWaterLevel=-0.04;
 let lakeMat=waterMat;
 if(HIGH){
@@ -251,35 +251,27 @@ if(HIGH){
   lakeMat.onBeforeCompile=shader=>{
     shader.uniforms.uFoamTime=foamTime;
     shader.vertexShader=shader.vertexShader
-      .replace('#include <common>','#include <common>\nattribute vec2 aLocal;\nattribute vec2 aRadii;\nattribute float aBed;\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nvarying float vBed;')
-      .replace('#include <begin_vertex>','#include <begin_vertex>\nvLocal=aLocal;\nvRadii=aRadii;\nvBed=aBed;');
+      .replace('#include <common>','#include <common>\nattribute vec2 aLocal;\nattribute vec2 aRadii;\nvarying vec2 vLocal;\nvarying vec2 vRadii;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvLocal=aLocal;\nvRadii=aRadii;');
     shader.fragmentShader=shader.fragmentShader
-      .replace('#include <common>','#include <common>\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nvarying float vBed;\nuniform float uFoamTime;')
+      .replace('#include <common>','#include <common>\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nuniform float uFoamTime;')
       .replace('#include <color_fragment>',`#include <color_fragment>
       {
         float fr=length(vLocal/vRadii);
-        float depth=max(0.0, (-0.04) - vBed);
-        float shoreFade=smoothstep(0.0, 0.14, depth) * (1.0 - smoothstep(0.86, 1.0, fr));
-        float rim=smoothstep(0.0, 0.04, depth) * (1.0 - smoothstep(0.04, 0.16, depth));
-        float lap=0.85+0.15*sin(uFoamTime*1.7+fr*36.0);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.92,0.97,1.0),rim*0.42*lap);
-        diffuseColor.a*=shoreFade;
+        float band=smoothstep(0.68,0.84,fr)*(1.0-smoothstep(0.84,0.95,fr));
+        float lap=0.85+0.15*sin(uFoamTime*1.7+fr*42.0);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.92,0.97,1.0),band*0.42*lap);
+        diffuseColor.a*=1.0-smoothstep(0.82,0.96,fr);
       }`);
   };
 }
 for(const l of lakeDefs) {
-  const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx*1.08,l.rz*1.08,0,Math.PI*2,false,0);
-  const geo=new THREE.ShapeGeometry(shape,56);
-  const pos=geo.getAttribute('position'), n=pos.count;
-  const bed=new Float32Array(n);
-  for(let i=0;i<n;i++){
-    const lx=pos.getX(i), ly=pos.getY(i);
-    bed[i]=terrainHeight(l.x+lx, l.z+ly);
-  }
-  geo.setAttribute('aBed',new THREE.BufferAttribute(bed,1));
+  const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx*0.97,l.rz*0.97,0,Math.PI*2,false,0);
+  const geo=new THREE.ShapeGeometry(shape,48);
   if(HIGH){
+    const pos=geo.getAttribute('position'), n=pos.count;
     const loc=new Float32Array(n*2), rad=new Float32Array(n*2);
-    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=l.rx*1.08; rad[i*2+1]=l.rz*1.08; }
+    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=l.rx*0.97; rad[i*2+1]=l.rz*0.97; }
     geo.setAttribute('aLocal',new THREE.BufferAttribute(loc,2));
     geo.setAttribute('aRadii',new THREE.BufferAttribute(rad,2));
   }
