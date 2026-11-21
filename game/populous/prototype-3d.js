@@ -64,18 +64,51 @@ const seeded = (x, z) => {
 const smooth = (a, b, x) => { const t = THREE.MathUtils.clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); };
 const lakeDefs = [{x:-13,z:7,rx:5.2,rz:3.8},{x:-8,z:-12,rx:3.8,rz:2.8},{x:15,z:10,rx:4.1,rz:3.2}];
 const riverZ = x => -4.8 + Math.sin(x * 0.105) * 3.3 + Math.sin(x * 0.24) * 0.75;
+// lakeDistance also records which lake is nearest in _lakeIdx (no allocation).
+let _lakeIdx = 0;
 function lakeDistance(x,z) {
-  return Math.min(...lakeDefs.map(l => Math.sqrt(((x-l.x)/l.rx)**2 + ((z-l.z)/l.rz)**2)));
+  let d = Infinity;
+  for (let k = 0; k < lakeDefs.length; k++) {
+    const l = lakeDefs[k];
+    const v = Math.sqrt(((x-l.x)/l.rx)**2 + ((z-l.z)/l.rz)**2);
+    if (v < d) { d = v; _lakeIdx = k; }
+  }
+  return d;
 }
 function riverDistance(x,z) { return Math.abs(z-riverZ(x)); }
-function terrainHeight(x,z) {
+// Terrain before lakes and the river are carved into it.
+function naturalHeight(x,z) {
   const broad = Math.sin(x*.17+1.2)*.52 + Math.cos(z*.2-.7)*.42 + Math.sin((x+z)*.105)*.3;
   const detail = Math.sin(x*.48+z*.23)*.09 + Math.cos(z*.51-x*.16)*.07;
   const hill = Math.max(0, Math.sin(x*.115+z*.07)*Math.cos(z*.13-x*.06)) * .78;
   const edge = smooth(24, 29, Math.max(Math.abs(x),Math.abs(z)));
-  let h = broad + detail + hill - edge*1.15;
+  return broad + detail + hill - edge*1.15;
+}
+// One flat water level per lake: just under the lowest point of the natural
+// terrain on a ring around the lake. The basin is then carved to that level, so
+// the flat water plane always sits fully inside its basin (the old shared
+// carve depth let sloping terrain bury one side of the plane, leaving only a
+// crescent or a straight-cut sliver).
+const lakeLevels = lakeDefs.map(l => {
+  let m = Infinity;
+  for (let a = 0; a < 48; a++) {
+    const t = a / 48 * Math.PI * 2;
+    m = Math.min(m, naturalHeight(l.x + Math.cos(t) * l.rx * 1.25, l.z + Math.sin(t) * l.rz * 1.25));
+  }
+  return THREE.MathUtils.clamp(m - .06, -.9, .4);
+});
+function terrainHeight(x,z) {
+  let h = naturalHeight(x,z);
   const lake = lakeDistance(x,z);
-  if (lake < 1.16) h -= (1-smooth(.78,1.18,lake)) * .9;
+  if (lake < 1.9) {
+    const lv = lakeLevels[_lakeIdx];
+    // Inside the ellipse the bed drops below the waterline; outside it the
+    // bank rises gently and blends into the natural terrain.
+    const bed = lake < 1
+      ? lv - .45 * (1 - smooth(.25, 1, lake))
+      : lv + .08 * smooth(1, 1.4, lake);
+    h = THREE.MathUtils.lerp(bed, h, smooth(1.1, 1.9, lake));
+  }
   const river = riverDistance(x,z);
   if (river < 1.35) h -= (1-smooth(.55,1.35,river)) * .36;
   return h;
@@ -242,9 +275,9 @@ if(HIGH){
   waterScroll.push({tex:oceanNormals,sx:0.006,sy:0.004});
 }
 const waterGroup=new THREE.Group(); world.add(waterGroup);
-// Lake water sits cleanly inside the basin and fades out toward the rim so no
-// separate foam plane or floating disc edge ever appears.
-const lakeWaterLevel=-0.04;
+// Each lake's water plane sits at its own level (lakeLevels, see above); the
+// terrain basin is carved to that level, so the plane is never cut by the
+// ground. The surface fades out toward the rim so no hard disc edge appears.
 let lakeMat=waterMat;
 if(HIGH){
   lakeMat=waterMat.clone();
@@ -265,7 +298,7 @@ if(HIGH){
       }`);
   };
 }
-for(const l of lakeDefs) {
+lakeDefs.forEach((l,li)=>{
   const lakeRx=l.rx*0.97, lakeRz=l.rz*0.97;
   const shape=new THREE.Shape(); shape.absellipse(0,0,lakeRx,lakeRz,0,Math.PI*2,false,0);
   // Higher tessellation keeps the shoreline smooth at close zoom.
@@ -277,17 +310,8 @@ for(const l of lakeDefs) {
     geo.setAttribute('aLocal',new THREE.BufferAttribute(loc,2));
     geo.setAttribute('aRadii',new THREE.BufferAttribute(rad,2));
   }
-  // Sample the ACTUAL water-mesh rim. Previously the larger basin radius was
-  // sampled while a 0.97-sized disc was drawn, so sloping terrain could cut
-  // across the disc and leave only a crescent visible.
-  let rimMin=Infinity;
-  for(let a=0;a<128;a++){
-    const t=a/128*Math.PI*2;
-    rimMin=Math.min(rimMin,terrainHeight(l.x+Math.cos(t)*lakeRx,l.z+Math.sin(t)*lakeRz));
-  }
-  const level=Math.min(lakeWaterLevel,rimMin-0.045);
-  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,level,l.z); waterGroup.add(mesh);
-}
+  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,lakeLevels[li],l.z); waterGroup.add(mesh);
+});
 // River: a flat ribbon sunk into the carved channel. The old raised tube
 // (radius .36 centred on the channel bottom) bulged above the banks and read
 // as floating, especially among trees. The ribbon follows the channel bottom
