@@ -412,7 +412,7 @@ function displaceRadial(geo, amp, freq){
 const rockGeo=displaceRadial(new THREE.DodecahedronGeometry(.7,0),.13,2.6),rockMat=material(0x858779);
 const rocks=new THREE.InstancedMesh(rockGeo,rockMat,95);let rockCount=0;
 const rockPositions=[];
-for(let z=-20;z<=20;z+=2)for(let x=-20;z<=20;x+=2){
+for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
   if(rockCount>=95||!onLand(x,z)||Math.hypot(x,z)<8)continue;
   const h=terrainHeight(x,z);
   if(h>.72&&seeded(x+33,z-8)>.48){rockPositions.push({x,z});dummy.position.set(x,h+.07,z);dummy.scale.set(.6+seeded(x,z)*.9,.45+seeded(z,x)*.55,.55+seeded(x+4,z)*.7);dummy.rotation.set(seeded(x,z+4),seeded(z+4,x)*6,seeded(x+3,z)*.3);dummy.updateMatrix();rocks.setMatrixAt(rockCount++,dummy.matrix);}
