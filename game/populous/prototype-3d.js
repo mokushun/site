@@ -275,7 +275,17 @@ for(const l of lakeDefs) {
     geo.setAttribute('aLocal',new THREE.BufferAttribute(loc,2));
     geo.setAttribute('aRadii',new THREE.BufferAttribute(rad,2));
   }
-  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,lakeWaterLevel,l.z); waterGroup.add(mesh);
+  // Per-lake water level: on sloped ground a shared level leaves the disc rim
+  // exposed on the downhill side (the forest lake looked afloat). Sample the
+  // rim and put the surface just below its lowest point so the shore closes
+  // all the way around.
+  let rimMin=Infinity;
+  for(let a=0;a<64;a++){
+    const t=a/64*Math.PI*2;
+    rimMin=Math.min(rimMin, terrainHeight(l.x+Math.cos(t)*l.rx, l.z+Math.sin(t)*l.rz));
+  }
+  const level=Math.min(lakeWaterLevel, rimMin-0.03);
+  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,level,l.z); waterGroup.add(mesh);
 }
 // River: a flat ribbon sunk into the carved channel. The old raised tube
 // (radius .36 centred on the channel bottom) bulged above the banks and read
