@@ -22,6 +22,8 @@ export class HUD {
     this.boostFillElement = document.getElementById('hud-boost-fill');
     this.boostLabelElement = document.getElementById('hud-boost-label');
     this.notifyElement = document.getElementById('hud-notify');
+    this.crystalElement = document.getElementById('hud-crystal');
+    this.targetElement = document.getElementById('hud-target');
     this.stageLabelElement = document.querySelector('.hud-phase');
     this.debugUpdateCounter = 0;
     this.notifyTimeoutId = null;
@@ -34,6 +36,20 @@ export class HUD {
   setStageLabel(text) {
     if (this.stageLabelElement) {
       this.stageLabelElement.textContent = text;
+    }
+  }
+
+  setCrystalProgress(collected, total) {
+    if (this.crystalElement) {
+      this.crystalElement.textContent = `${collected} / ${total}`;
+    }
+  }
+
+  // 目標タイムと S ランク条件をタイトル欄に出す（ランク条件の画面表示、仕様 §8）。
+  setTargetInfo(targetTimeSeconds, crystalsTotal) {
+    if (this.targetElement) {
+      this.targetElement.textContent =
+        `TARGET ${formatElapsedTime(targetTimeSeconds)} · S = 目標以内 + クリスタル ${crystalsTotal} 個`;
     }
   }
 

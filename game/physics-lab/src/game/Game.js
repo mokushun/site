@@ -7,9 +7,12 @@ import { Player } from './Player.js';
 import { CheckpointManager } from './CheckpointManager.js';
 import { PlatformCarrier } from './PlatformCarrier.js';
 import { StageLoader } from './StageLoader.js';
+import { SaveManager } from './SaveManager.js';
+import { evaluateRank } from './Rank.js';
 import { STAGES } from '../data/stages.js';
 import { HUD } from '../ui/HUD.js';
 import { PauseMenu } from '../ui/PauseMenu.js';
+import { ResultScreen } from '../ui/ResultScreen.js';
 
 // ゲーム本体。Phase 1 の物理・描画に加え、Phase 2 で
 // ゲーム状態（playing / paused）、タイマー、チェックポイント、
@@ -28,6 +31,10 @@ export class Game {
     this.crystals = [];
     this.goalReached = false;
     this.goalTimerSeconds = 0;
+    this.saveManager = null;
+    this.resultScreen = null;
+    this.collectedCrystalCount = 0;
+    this.clearTimeSeconds = null;
     this.gimmicks = [];
     this.inputManager = null;
     this.cameraController = null;
@@ -37,7 +44,7 @@ export class Game {
     this.scene = null;
     this.camera = null;
 
-    this.state = 'playing'; // 'playing' | 'paused'
+    this.state = 'playing'; // 'playing' | 'paused' | 'result'
     this.elapsedSeconds = 0;
     this.respawnCount = 0;
     this.everPointerLocked = false;
@@ -81,6 +88,13 @@ export class Game {
       onRespawn: () => { this.respawn('menu'); this.resumeGame(true); },
     });
 
+    this.saveManager = new SaveManager(STAGES.length);
+    this.resultScreen = new ResultScreen({
+      onRetry: () => this.loadStage(this.currentStageIndex),
+      onNext: () => this.loadStage(Math.min(this.currentStageIndex + 1, STAGES.length - 1)),
+      onSelectStage: (stageIndex) => this.loadStage(stageIndex),
+    });
+
     window.addEventListener('resize', this.boundResize);
     document.addEventListener('pointerlockchange', this.boundPointerLockChange);
 
@@ -90,12 +104,22 @@ export class Game {
     });
 
     // URL の ?stage=N（1始まり）で開始ステージを指定できる。
+    // 未解放のステージは指定しても開かず、解放済みの最後の面に丸める。
     let initialStageIndex = 0;
+    let requestedLockedStage = false;
     const stageParam = Number.parseInt(new URLSearchParams(window.location.search).get('stage') ?? '', 10);
     if (Number.isFinite(stageParam) && stageParam >= 1 && stageParam <= STAGES.length) {
-      initialStageIndex = stageParam - 1;
+      if (this.saveManager.isUnlocked(stageParam - 1)) {
+        initialStageIndex = stageParam - 1;
+      } else {
+        initialStageIndex = this.saveManager.getUnlockedStageCount() - 1;
+        requestedLockedStage = true;
+      }
     }
     this.loadStage(initialStageIndex);
+    if (requestedLockedStage) {
+      this.hud.showNotification('そのステージはまだ解放されていません');
+    }
 
     this.hud.hideLoading();
     this.hud.setHintVisible(true);
@@ -124,6 +148,8 @@ export class Game {
     this.respawnCount = 0;
     this.goalReached = false;
     this.goalTimerSeconds = 0;
+    this.collectedCrystalCount = 0;
+    this.clearTimeSeconds = null;
 
     const start = loaded.playerStart;
     this.player.respawnTo({
@@ -134,14 +160,67 @@ export class Game {
     this.cameraController.pitchRadians = 0.32;
     this.cameraController.snapToTarget(this.player.getPosition());
     this.hud.setStageLabel(`STAGE ${stageIndex + 1} / ${STAGES.length}: ${loaded.stageName}`);
+    this.hud.setCrystalProgress(0, this.crystals.length);
+    const stageData = STAGES[stageIndex];
+    this.hud.setTargetInfo(stageData.targetTimeSeconds, this.crystals.length);
 
-    // ステージ切替時はポーズを解除してすぐ遊べる状態にする。
-    if (this.state === 'paused') {
+    // ステージ切替時はポーズ/リザルトを解除してすぐ遊べる状態にする。
+    if (this.state === 'paused' || this.state === 'result') {
       this.state = 'playing';
       this.inputManager.enabled = true;
       this.pauseMenu.hide();
+      if (this.resultScreen) this.resultScreen.hide();
+      this.hud.setHintVisible(document.pointerLockElement !== this.canvasElement);
     }
     this.inputManager.clearTransientQueues();
+  }
+
+  // ゴール時のリザルト表示（Phase 5）。ランクを評価してセーブに記録し、
+  // 結果画面を出す。状態を先に 'result' にしてからロックを外す
+  // （ロック解除イベントでポーズ扱いにならないようにするため）。
+  showResult() {
+    const stageData = STAGES[this.currentStageIndex];
+    const rank = evaluateRank({
+      timeSeconds: this.clearTimeSeconds,
+      crystalsCollected: this.collectedCrystalCount,
+      crystalsTotal: this.crystals.length,
+      targetTimeSeconds: stageData.targetTimeSeconds,
+      rankACrystals: stageData.rankACrystals,
+    });
+    const outcome = this.saveManager.recordClear(this.currentStageIndex, {
+      timeSeconds: this.clearTimeSeconds,
+      crystalsCollected: this.collectedCrystalCount,
+      rank,
+    });
+    this.state = 'result';
+    this.inputManager.enabled = false;
+    this.inputManager.clearTransientQueues();
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+    this.hud.setHintVisible(false);
+    const stageButtons = STAGES.map((stage, index) => ({
+      index,
+      name: stage.name,
+      locked: !this.saveManager.isUnlocked(index),
+      bestRank: this.saveManager.getRecord(index)?.bestRank ?? null,
+    }));
+    this.resultScreen.show({
+      stageName: `STAGE ${this.currentStageIndex + 1}: ${stageData.name}`,
+      rank,
+      timeSeconds: this.clearTimeSeconds,
+      crystalsCollected: this.collectedCrystalCount,
+      crystalsTotal: this.crystals.length,
+      respawnCount: this.respawnCount,
+      bestTimeSeconds: outcome.record.bestTimeSeconds ?? null,
+      isNewBestTime: outcome.isNewBestTime,
+      unlockedNewStage: outcome.unlockedNewStage,
+      saved: outcome.saved,
+      hasNext: this.currentStageIndex + 1 < STAGES.length,
+      targetTimeSeconds: stageData.targetTimeSeconds,
+      rankACrystals: stageData.rankACrystals,
+      stageButtons,
+    });
   }
 
   buildLights() {
@@ -169,7 +248,10 @@ export class Game {
 
   physicsStep(fixedDeltaSeconds) {
     if (this.state !== 'playing') return;
-    this.elapsedSeconds += fixedDeltaSeconds;
+    // ゴール到達後はクリアタイムを凍結する。
+    if (!this.goalReached) {
+      this.elapsedSeconds += fixedDeltaSeconds;
+    }
 
     if (this.inputManager.consumeRespawn()) {
       this.respawn('key');
@@ -198,14 +280,26 @@ export class Game {
       this.platformCarrier.updateSupport(this.player);
     }
 
-    const newlyActivated = this.checkpointManager.update(this.player.getPosition());
+    const playerPosition = this.player.getPosition();
+    const newlyActivated = this.checkpointManager.update(playerPosition);
     if (newlyActivated) {
       this.hud.showNotification(`チェックポイント到達 — ${newlyActivated.name}`);
     }
 
-    if (this.goal && !this.goalReached && this.goal.checkReached(this.player.getPosition())) {
+    for (const crystal of this.crystals) {
+      if (crystal.tryCollect(playerPosition)) {
+        this.collectedCrystalCount += 1;
+        this.hud.setCrystalProgress(this.collectedCrystalCount, this.crystals.length);
+        this.hud.showNotification(
+          `クリスタル取得 ${this.collectedCrystalCount} / ${this.crystals.length}`,
+        );
+      }
+    }
+
+    if (this.goal && !this.goalReached && this.goal.checkReached(playerPosition)) {
       this.goalReached = true;
-      this.goalTimerSeconds = 1.4;
+      this.goalTimerSeconds = 1.2;
+      this.clearTimeSeconds = this.elapsedSeconds;
       const stageName = STAGES[this.currentStageIndex].name;
       this.hud.showNotification(`GOAL! — ${stageName} クリア`);
     }
@@ -282,13 +376,18 @@ export class Game {
     }
     const stageSelect = this.inputManager.consumeStageSelect();
     if (stageSelect !== null && stageSelect !== this.currentStageIndex) {
-      this.loadStage(stageSelect);
+      if (this.saveManager.isUnlocked(stageSelect)) {
+        this.loadStage(stageSelect);
+      } else {
+        this.hud.showNotification(`STAGE ${stageSelect + 1} はまだ解放されていません`);
+      }
     }
-    // ゴール後は少し置いてから次のステージへ（最後なら最初に戻る）。
+    // ゴール後は少し置いてからリザルト画面へ。
     if (this.goalReached) {
       this.goalTimerSeconds -= frameDeltaSeconds;
       if (this.goalTimerSeconds <= 0) {
-        this.loadStage((this.currentStageIndex + 1) % STAGES.length);
+        this.goalReached = false;
+        this.showResult();
       }
     }
     if (this.state === 'playing') {

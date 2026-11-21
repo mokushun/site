@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PHYSICS LAB — Phase 4</title>
+<title>PHYSICS LAB — Phase 5</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./src/styles/style.css">
 <!--
@@ -31,10 +31,12 @@
       <div class="hud-game-name">PHYSICS LAB</div>
       <div class="hud-phase">STAGE 1 / 5: TEST LAB</div>
       <div id="hud-progress">CHECKPOINT 1 / 4</div>
+      <div id="hud-target"></div>
       <div id="hud-debug">initializing…</div>
     </div>
     <div id="hud-status">
       <div class="hud-status-row"><span class="hud-status-label">TIME</span><span id="hud-time">00:00.0</span></div>
+      <div class="hud-status-row"><span class="hud-status-label">CRYSTAL</span><span id="hud-crystal">0 / 3</span></div>
       <div class="hud-status-row"><span class="hud-status-label">RESPAWN</span><span id="hud-respawn">0</span></div>
     </div>
     <div id="hud-boost">
@@ -56,6 +58,28 @@
       <button id="pause-resume" type="button">再開する（Esc / P）</button>
       <button id="pause-respawn" type="button">チェックポイントから再開</button>
       <div class="pause-note">ポーズ中はタイマーと物理演算が止まります</div>
+    </div>
+  </div>
+
+  <div id="result-screen" hidden>
+    <div class="result-panel">
+      <div class="result-title">STAGE CLEAR</div>
+      <div id="result-stage-name"></div>
+      <div id="result-rank">S</div>
+      <div class="result-rows">
+        <div class="result-row"><span>TIME</span><span id="result-time">00:00.0</span></div>
+        <div class="result-row"><span>CRYSTAL</span><span id="result-crystals">0 / 3</span></div>
+        <div class="result-row"><span>RESPAWN</span><span id="result-respawn">0</span></div>
+        <div class="result-row"><span>BEST TIME</span><span id="result-best">—</span></div>
+      </div>
+      <div id="result-note"></div>
+      <div id="result-conditions"></div>
+      <div class="result-buttons">
+        <button id="result-retry" type="button">もう一度</button>
+        <button id="result-next" type="button">次のステージへ</button>
+      </div>
+      <div class="result-select-label">ステージ選択（解放済みのみ）</div>
+      <div id="result-stage-select"></div>
     </div>
   </div>
 </div>

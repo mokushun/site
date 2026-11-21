@@ -8,6 +8,8 @@
 const STAGE_1 = {
   id: 'stage-01',
   name: 'TEST LAB',
+  targetTimeSeconds: 75,
+  rankACrystals: 2,
   playerStart: { position: { x: 0, y: 0, z: 6 }, yawRadians: 0 },
   boxes: [
     { style: 'floor', size: { x: 36, y: 1, z: 36 }, position: { x: 0, y: -0.5, z: 0 } },
@@ -59,6 +61,8 @@ const STAGE_1 = {
 const STAGE_2 = {
   id: 'stage-02',
   name: 'STEP VALLEY',
+  targetTimeSeconds: 90,
+  rankACrystals: 2,
   playerStart: { position: { x: 0, y: 0, z: 3 }, yawRadians: Math.PI },
   boxes: [
     { style: 'platform', size: { x: 10, y: 1.2, z: 10 }, position: { x: 0, y: -0.6, z: 0 } },
@@ -91,6 +95,8 @@ const STAGE_2 = {
 const STAGE_3 = {
   id: 'stage-03',
   name: 'WIND CANYON',
+  targetTimeSeconds: 90,
+  rankACrystals: 2,
   playerStart: { position: { x: 0, y: 0, z: 3 }, yawRadians: Math.PI },
   boxes: [
     { style: 'platform', size: { x: 8, y: 1.2, z: 8 }, position: { x: 0, y: -0.6, z: 0 } },
@@ -125,6 +131,8 @@ const STAGE_3 = {
 const STAGE_4 = {
   id: 'stage-04',
   name: 'MAGNET PIT',
+  targetTimeSeconds: 120,
+  rankACrystals: 2,
   playerStart: { position: { x: -12, y: 0, z: 12 }, yawRadians: -Math.PI / 4 },
   boxes: [
     { style: 'platform', size: { x: 30, y: 1.2, z: 10 }, position: { x: 0, y: -0.6, z: -10 } },
@@ -160,6 +168,8 @@ const STAGE_4 = {
 const STAGE_5 = {
   id: 'stage-05',
   name: 'FINAL CIRCUIT',
+  targetTimeSeconds: 150,
+  rankACrystals: 2,
   playerStart: { position: { x: 0, y: 0, z: 6 }, yawRadians: Math.PI },
   boxes: [
     { style: 'platform', size: { x: 8, y: 1.2, z: 8 }, position: { x: 0, y: -0.6, z: 4 } },

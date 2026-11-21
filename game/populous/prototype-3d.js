@@ -1,25 +1,31 @@
 import * as THREE from 'three';
+import { Sky } from 'three/addons/objects/Sky.js';
+
+// Quality preset (GRAPHICS_TASK step 0): ?quality=low|high, default high.
+// HIGH enables the extra graphics work; LOW keeps the load at or below the original.
+const quality = new URLSearchParams(location.search).get('quality') === 'low' ? 'low' : 'high';
+const HIGH = quality === 'high';
 
 const root = document.querySelector('#view');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9bbdc3);
-scene.fog = new THREE.FogExp2(0x9bbdc3, 0.009);
+scene.fog = new THREE.FogExp2(0xbcd3da, 0.009);
 const camera = new THREE.PerspectiveCamera(39, innerWidth / innerHeight, 0.1, 260);
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.8));
+renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 1.8 : 1.25));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMappingExposure = 1.0;
 root.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xe4f3ff, 0x59634a, 1.65));
+scene.add(new THREE.HemisphereLight(0xe4f3ff, 0x59634a, 0.85));
 const sun = new THREE.DirectionalLight(0xffe3b5, 3.0);
 sun.position.set(-32, 48, 25);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(HIGH ? 4096 : 2048, HIGH ? 4096 : 2048);
 Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 100 });
 sun.shadow.bias = -0.00018;
 sun.shadow.normalBias = 0.025;
@@ -27,6 +33,26 @@ scene.add(sun);
 const fill = new THREE.DirectionalLight(0xb8d7e3, 0.55);
 fill.position.set(25, 20, -28);
 scene.add(fill);
+
+// Procedural sky + image-based lighting (GRAPHICS_TASK step 1).
+// The sky is rendered once into a PMREM environment map so that shade sides
+// pick up sky colour; the same sky mesh stays in the scene as the backdrop.
+const sky = new Sky();
+sky.scale.setScalar(200);
+sky.material.uniforms.turbidity.value = 6;
+sky.material.uniforms.rayleigh.value = 1.8;
+sky.material.uniforms.mieCoefficient.value = 0.004;
+sky.material.uniforms.mieDirectionalG.value = 0.85;
+sky.material.uniforms.sunPosition.value.copy(sun.position).normalize();
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.add(sky);
+  scene.environment = pmrem.fromScene(envScene, 0, 0.1, 500).texture;
+  pmrem.dispose();
+}
+scene.add(sky);
+scene.environmentIntensity = 0.5;
 
 const world = new THREE.Group();
 scene.add(world);
@@ -77,10 +103,93 @@ for(let z=0;z<divisions;z++) for(let x=0;x<divisions;x++) {
   indices.push(a,c,b,b,c,d);
 }
 const terrainGeo=new THREE.BufferGeometry();
+const uvArr=new Float32Array(verts*2);
+for(let i=0;i<verts;i++){uvArr[i*2]=positions[i*3]/3.2;uvArr[i*2+1]=positions[i*3+2]/3.2;}
+terrainGeo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
 terrainGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
 terrainGeo.setAttribute('color',new THREE.BufferAttribute(colors,3));
 terrainGeo.setIndex(indices); terrainGeo.computeVertexNormals();
-const terrain=new THREE.Mesh(terrainGeo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1}));
+// Procedural terrain textures (GRAPHICS_TASK step 2, HIGH only).
+// Canvas value-noise is mapped through colour ramps for grass / dirt / rock /
+// wet sand, plus a shared noise bump map. The splat mix runs in
+// onBeforeCompile using world position (height + slope), so no uv layout is
+// needed for the colour blend; the original vertex colours stay as a weak tint.
+function noiseCanvas(size, octaves){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#7a7a7a'; ctx.fillRect(0,0,size,size);
+  let amp=0.55, cell=4;
+  for(let o=0;o<octaves;o++){
+    const small=document.createElement('canvas'); small.width=small.height=cell;
+    const sctx=small.getContext('2d'); const img=sctx.createImageData(cell,cell);
+    for(let i=0;i<img.data.length;i+=4){ const v=105+Math.random()*95|0; img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255; }
+    sctx.putImageData(img,0,0);
+    ctx.globalAlpha=amp; ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(small,0,0,size,size);
+    amp*=0.55; cell*=2;
+  }
+  ctx.globalAlpha=1;
+  return cv;
+}
+function rampTexture(size, stops, fleck){
+  const noise=noiseCanvas(size,4);
+  const nctx=noise.getContext('2d'); const src=nctx.getImageData(0,0,size,size);
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d'); const out=ctx.createImageData(size,size);
+  const cols=stops.map(c=>new THREE.Color(c));
+  for(let i=0;i<src.data.length;i+=4){
+    const t=src.data[i]/255, seg=Math.min(cols.length-2, Math.floor(t*(cols.length-1))), f=t*(cols.length-1)-seg;
+    const a=cols[seg], b=cols[seg+1];
+    out.data[i]=255*(a.r+(b.r-a.r)*f); out.data[i+1]=255*(a.g+(b.g-a.g)*f); out.data[i+2]=255*(a.b+(b.b-a.b)*f); out.data[i+3]=255;
+  }
+  ctx.putImageData(out,0,0);
+  if(fleck){ ctx.fillStyle=fleck; for(let i=0;i<size*6;i++){ ctx.globalAlpha=Math.random()*0.22; ctx.fillRect(Math.random()*size,Math.random()*size,1.6,1.6);} ctx.globalAlpha=1; }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=4;
+  return tex;
+}
+const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1});
+if(HIGH){
+  const grassTex=rampTexture(256,[0x59793c,0x74975a,0x95b26e],'#c9d189');
+  const dirtTex=rampTexture(256,[0x6b4e33,0x8a6a48,0xa5835e],'#59422a');
+  const rockTex=rampTexture(256,[0x5c5e55,0x7c7f72,0x9c9e92],'#4a4c44');
+  const sandTex=rampTexture(256,[0x87714e,0xa68d5f,0xc2ad7f],'#77643f');
+  const bumpTex=new THREE.CanvasTexture(noiseCanvas(256,4));
+  bumpTex.wrapS=bumpTex.wrapT=THREE.RepeatWrapping;
+  terrainMat.bumpMap=bumpTex; terrainMat.bumpScale=0.15;
+  terrainMat.onBeforeCompile=shader=>{
+    shader.uniforms.tGrass={value:grassTex};
+    shader.uniforms.tDirt={value:dirtTex};
+    shader.uniforms.tRock={value:rockTex};
+    shader.uniforms.tSand={value:sandTex};
+    shader.vertexShader=shader.vertexShader
+      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;\nvWNormal=normalize(mat3(modelMatrix)*objectNormal);');
+    shader.fragmentShader=shader.fragmentShader
+      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform sampler2D tGrass;\nuniform sampler2D tDirt;\nuniform sampler2D tRock;\nuniform sampler2D tSand;')
+      .replace('#include <color_fragment>',`#include <color_fragment>
+      {
+        vec2 uvNear=vWPos.xz*0.55;
+        vec2 uvFar=vWPos.xz*0.045;
+        vec3 grassC=mix(texture2D(tGrass,uvFar).rgb,texture2D(tGrass,uvNear).rgb,0.55);
+        vec3 dirtC=mix(texture2D(tDirt,uvFar).rgb,texture2D(tDirt,uvNear).rgb,0.55);
+        vec3 rockC=mix(texture2D(tRock,uvFar).rgb,texture2D(tRock,uvNear).rgb,0.55);
+        vec3 sandC=mix(texture2D(tSand,uvFar).rgb,texture2D(tSand,uvNear).rgb,0.55);
+        float macro=texture2D(tDirt,uvFar*1.7).g;
+        float slope=1.0-clamp(vWNormal.y,0.0,1.0);
+        float rockW=smoothstep(0.12,0.32,slope+max(0.0,vWPos.y-0.95)*0.25);
+        float sandW=smoothstep(0.10,0.0,vWPos.y)*(1.0-rockW);
+        float dirtW=smoothstep(0.58,0.78,macro)*(1.0-rockW)*(1.0-sandW);
+        vec3 splat=grassC;
+        splat=mix(splat,dirtC,dirtW*0.85);
+        splat=mix(splat,sandC,sandW);
+        splat=mix(splat,rockC,rockW);
+        vec3 tint=mix(vec3(1.0),vColor*1.45,0.42);
+        diffuseColor.rgb=splat*tint;
+      }`);
+  };
+}
+const terrain=new THREE.Mesh(terrainGeo,terrainMat);
 terrain.receiveShadow=true; terrain.castShadow=false; world.add(terrain);
 
 // Distant ocean and soft shoreline.
@@ -258,6 +367,13 @@ document.querySelector('#fertilityTool').addEventListener('click',()=>simulation
 document.querySelector('#rain').addEventListener('click',()=>simulation.startRain());
 renderer.domElement.addEventListener('click',e=>simulation.handleClick(e,camera,renderer.domElement));
 document.querySelector('#rotate').addEventListener('click',e=>{autoRotate=!autoRotate;e.currentTarget.textContent='自動回転：'+(autoRotate?'ON':'OFF');});
+const qualityBtn=document.querySelector('#quality');
+qualityBtn.textContent='画質：'+quality.toUpperCase();
+qualityBtn.addEventListener('click',()=>{
+  const url=new URL(location.href);
+  url.searchParams.set('quality',HIGH?'low':'high');
+  location.href=url.toString();
+});
 document.querySelector('#pause').addEventListener('click',e=>{timeRunning=!timeRunning;e.currentTarget.textContent='時間：'+(timeRunning?'進行':'停止');document.querySelector('#mode').textContent=timeRunning?'観察モード — 村の一日が流れています':'観察モード — 時間を止めています';});
 
 const clock=new THREE.Clock();
