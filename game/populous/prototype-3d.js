@@ -287,8 +287,10 @@ for(const l of lakeDefs) {
   const level=Math.min(lakeWaterLevel, rimMin-0.03);
   const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,level,l.z); waterGroup.add(mesh);
 }
-// River: a flat ribbon sunk into the carved channel. Keep it slightly above the
-// carved channel floor so it stays visible while sitting cleanly in the terrain.
+// River: a flat ribbon sunk into the carved channel. The old raised tube
+// (radius .36 centred on the channel bottom) bulged above the banks and read
+// as floating, especially among trees. The ribbon follows the channel bottom
+// +.17, so the banks occlude its edges and it sits in the terrain.
 {
   const xs=[];
   for(let x=-23;x<=23;x+=.5) xs.push(x);
