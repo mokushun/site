@@ -257,15 +257,17 @@ if(HIGH){
       .replace('#include <color_fragment>',`#include <color_fragment>
       {
         float fr=length(vLocal/vRadii);
-        float band=smoothstep(0.74,0.97,fr);
+        float band=smoothstep(0.70,0.92,fr)*(1.0-smoothstep(0.90,0.97,fr));
         float lap=0.85+0.15*sin(uFoamTime*1.7+fr*46.0);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.93,0.98,1.0),band*0.5*lap);
+        diffuseColor.a*=1.0-smoothstep(0.86,0.97,fr)*0.9;
       }`);
   };
 }
 for(const l of lakeDefs) {
   const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx,l.rz,0,Math.PI*2,false,0);
   const geo=new THREE.ShapeGeometry(shape,48);
+  geo.scale(0.97,0.97,1);
   if(HIGH){
     const pos=geo.getAttribute('position'), n=pos.count;
     const loc=new Float32Array(n*2), rad=new Float32Array(n*2);
@@ -395,7 +397,19 @@ broadMesh.castShadow=true; broadMesh.receiveShadow=true; world.add(broadMesh);
 pineMesh.castShadow=true; pineMesh.receiveShadow=true; world.add(pineMesh);
 
 // Rocky ridges and scattered boulders.
-const rockGeo=displace(new THREE.DodecahedronGeometry(.7,0),.13,2.6),rockMat=material(0x858779);
+function displaceRadial(geo, amp, freq){
+  const pa=geo.getAttribute('position');
+  const v=new THREE.Vector3();
+  for(let i=0;i<pa.count;i++){
+    v.fromBufferAttribute(pa,i);
+    const h=seeded(Math.round(v.x*freq)*3.7+Math.round(v.y*freq)*1.3, Math.round(v.z*freq)*2.9)-.5;
+    v.addScaledVector(v.clone().normalize(), h*amp);
+    pa.setXYZ(i,v.x,v.y,v.z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+const rockGeo=displaceRadial(new THREE.DodecahedronGeometry(.7,0),.13,2.6),rockMat=material(0x858779);
 const rocks=new THREE.InstancedMesh(rockGeo,rockMat,95);let rockCount=0;
 const rockPositions=[];
 for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
