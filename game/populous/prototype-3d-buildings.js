@@ -1,8 +1,51 @@
 export function createVillageArchitecture(THREE,world,terrainHeight){
 const mat = (color, roughness=1, extra={}) => new THREE.MeshStandardMaterial({color,roughness,...extra});
-const walls=[0xd2bf99,0xbda77d,0xe0cfaa,0xa7a184,0xc5b49a].map(c=>mat(c));
-const roofs=[0x75483a,0x59483b,0x8b6044,0x68735b].map(c=>mat(c));
-const wood=mat(0x63452f),darkWood=mat(0x493528),stone=mat(0x888879),stoneLight=mat(0xb2aa92);
+// Procedural surface textures (GRAPHICS_TASK step 5): plaster, wood grain,
+// roof tiles and stone courses drawn on canvases. The maps stay near-white so
+// the existing material colours keep their meaning; shapes are unchanged.
+function canvasTex(size,draw){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  draw(cv.getContext('2d'),size);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const plasterTex=canvasTex(256,(ctx,S)=>{
+  ctx.fillStyle='#f7f2e6'; ctx.fillRect(0,0,S,S);
+  for(let i=0;i<2600;i++){ ctx.fillStyle=`rgba(${Math.random()<.5?120:255},${110+Math.random()*40|0},80,${Math.random()*.05})`; ctx.fillRect(Math.random()*S,Math.random()*S,rnd(1,3),rnd(1,3)); }
+  for(let i=0;i<7;i++){ const x=Math.random()*S,y=Math.random()*S,r=rnd(18,52); const g=ctx.createRadialGradient(x,y,2,x,y,r); g.addColorStop(0,'rgba(150,125,90,0.10)'); g.addColorStop(1,'rgba(150,125,90,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); }
+});
+const woodTex=canvasTex(256,(ctx,S)=>{
+  ctx.fillStyle='#f3ece1'; ctx.fillRect(0,0,S,S);
+  for(let x=0;x<S;x+=2){ const v=Math.sin(x*.22)*10+Math.sin(x*.031+2)*16; ctx.fillStyle=`rgba(122,90,58,${.05+Math.abs(v)*.006})`; ctx.fillRect(x,0,2,S); }
+  for(let i=0;i<5;i++){ const x=Math.random()*S,y=Math.random()*S; ctx.strokeStyle='rgba(110,80,50,0.35)'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.ellipse(x,y,rnd(3,6),rnd(6,11),0,0,7); ctx.stroke(); }
+  ctx.fillStyle='rgba(100,72,44,0.20)'; for(let y=0;y<S;y+=64) ctx.fillRect(0,y,S,2);
+});
+const roofTex=canvasTex(256,(ctx,S)=>{
+  ctx.fillStyle='#f2ede6'; ctx.fillRect(0,0,S,S);
+  const row=32, col=32;
+  for(let y=0;y<S;y+=row) for(let x=-col;x<S+col;x+=col){
+    const ox=(y/row)%2?col/2:0, v=rnd(-7,7);
+    ctx.fillStyle=`rgba(${150+v},${120+v},${105+v},0.20)`; ctx.fillRect(x+ox+1,y+1,col-2,row-2);
+    ctx.strokeStyle='rgba(96,66,52,0.45)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x+ox+col/2,y+row,col/2-1,Math.PI,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+ox+1,y); ctx.lineTo(x+ox+1,y+row); ctx.stroke();
+  }
+});
+const stoneTex=canvasTex(256,(ctx,S)=>{
+  ctx.fillStyle='#efeee9'; ctx.fillRect(0,0,S,S);
+  const row=42;
+  for(let y=0;y<S;y+=row) for(let x=-70;x<S+70;x+=70){
+    const ox=(y/row)%2?35:0, v=rnd(-6,6);
+    ctx.fillStyle=`rgba(${128+v},${126+v},${118+v},0.16)`; ctx.fillRect(x+ox+2,2+y,66,row-4);
+    ctx.strokeStyle='rgba(84,84,78,0.4)'; ctx.lineWidth=2; ctx.strokeRect(x+ox+2,2+y,66,row-4);
+  }
+  for(let i=0;i<1500;i++){ ctx.fillStyle=`rgba(90,88,80,${Math.random()*.06})`; ctx.fillRect(Math.random()*S,Math.random()*S,2,2); }
+});
+const walls=[0xd2bf99,0xbda77d,0xe0cfaa,0xa7a184,0xc5b49a].map(c=>mat(c,1,{map:plasterTex}));
+const roofs=[0x75483a,0x59483b,0x8b6044,0x68735b].map(c=>mat(c,1,{map:roofTex}));
+const wood=mat(0x63452f,1,{map:woodTex}),darkWood=mat(0x493528,1,{map:woodTex}),stone=mat(0x888879,1,{map:stoneTex}),stoneLight=mat(0xb2aa92,1,{map:stoneTex});
 const glass=new THREE.MeshStandardMaterial({color:0xffd58b,emissive:0x98612b,emissiveIntensity:.32});
 const field=mat(0x9a8954),metal=mat(0x555e58);
 function box(parent,w,h,d,material,x,y,z,cast=true){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,z);m.castShadow=cast;m.receiveShadow=true;parent.add(m);return m;}

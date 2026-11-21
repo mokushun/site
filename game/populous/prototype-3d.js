@@ -21,7 +21,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 root.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xe4f3ff, 0x59634a, 0.85));
+const hemi=new THREE.HemisphereLight(0xe4f3ff, 0x59634a, 0.85); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe3b5, 3.0);
 sun.position.set(-32, 48, 25);
 sun.castShadow = true;
@@ -119,15 +119,22 @@ function onLand(x,z) { return !isWater(x,z) && Math.max(Math.abs(x),Math.abs(z))
 // Continuous terrain mesh: the tile-like block surface is replaced with a sculpted landscape.
 const divisions = 112, extent = 25, verts = (divisions+1)*(divisions+1);
 const positions = new Float32Array(verts*3), colors = new Float32Array(verts*3), indices = [];
+// shoreArr: per-vertex "near water" weight (1 at the waterline, fading out
+// about 1.7 lake-radii / 1.6 units from a lake / the river). Sand and the
+// dirt tint are applied only by this weight, not by absolute height (the old
+// height rule painted every low-lying area brown, far from any water).
+const shoreArr = new Float32Array(verts);
 const cLow = new THREE.Color(0x8c8a62), cGrass = new THREE.Color(0x729653), cMeadow = new THREE.Color(0x9caf70);
 const cHigh = new THREE.Color(0x777d6b), cDirt = new THREE.Color(0x987b59);
 for(let iz=0;iz<=divisions;iz++) for(let ix=0;ix<=divisions;ix++) {
   const x=-extent+2*extent*ix/divisions, z=-extent+2*extent*iz/divisions;
   const y=terrainHeight(x,z), k=(iz*(divisions+1)+ix)*3;
   positions[k]=x; positions[k+1]=y; positions[k+2]=z;
+  const shore=Math.max(1-smooth(1.0,1.7,lakeDistance(x,z)), 1-smooth(.5,1.6,riverDistance(x,z)));
+  shoreArr[iz*(divisions+1)+ix]=shore;
   const n=seeded(ix*.31,iz*.31);
   let col = y>.85 ? cHigh.clone().lerp(cLow,.35) : cGrass.clone().lerp(cMeadow,smooth(.1,.85,n*.35+y*.2));
-  if (y<-.05) col.lerp(cDirt,.45);
+  if (shore>0) col.lerp(cDirt,.45*shore);
   col.multiplyScalar(.94+n*.1);
   colors[k]=col.r; colors[k+1]=col.g; colors[k+2]=col.b;
 }
@@ -141,6 +148,7 @@ for(let i=0;i<verts;i++){uvArr[i*2]=positions[i*3]/3.2;uvArr[i*2+1]=positions[i*
 terrainGeo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
 terrainGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
 terrainGeo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+terrainGeo.setAttribute('aShore',new THREE.BufferAttribute(shoreArr,1));
 terrainGeo.setIndex(indices); terrainGeo.computeVertexNormals();
 // Procedural terrain textures (GRAPHICS_TASK step 2, HIGH only).
 // Canvas value-noise is mapped through colour ramps for grass / dirt / rock /
@@ -196,10 +204,10 @@ if(HIGH){
     shader.uniforms.tRock={value:rockTex};
     shader.uniforms.tSand={value:sandTex};
     shader.vertexShader=shader.vertexShader
-      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;')
-      .replace('#include <begin_vertex>','#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;\nvWNormal=normalize(mat3(modelMatrix)*objectNormal);');
+      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nattribute float aShore;\nvarying float vShore;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvWPos=(modelMatrix*vec4(transformed,1.0)).xyz;\nvWNormal=normalize(mat3(modelMatrix)*objectNormal);\nvShore=aShore;');
     shader.fragmentShader=shader.fragmentShader
-      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nuniform sampler2D tGrass;\nuniform sampler2D tDirt;\nuniform sampler2D tRock;\nuniform sampler2D tSand;')
+      .replace('#include <common>','#include <common>\nvarying vec3 vWPos;\nvarying vec3 vWNormal;\nvarying float vShore;\nuniform sampler2D tGrass;\nuniform sampler2D tDirt;\nuniform sampler2D tRock;\nuniform sampler2D tSand;')
       .replace('#include <color_fragment>',`#include <color_fragment>
       {
         vec2 uvNear=vWPos.xz*0.55;
@@ -211,7 +219,7 @@ if(HIGH){
         float macro=texture2D(tDirt,uvFar*1.7).g;
         float slope=1.0-clamp(vWNormal.y,0.0,1.0);
         float rockW=smoothstep(0.12,0.32,slope+max(0.0,vWPos.y-0.95)*0.25);
-        float sandW=smoothstep(0.10,0.0,vWPos.y)*(1.0-rockW);
+        float sandW=smoothstep(0.35,0.95,vShore)*(1.0-rockW);
         float dirtW=smoothstep(0.58,0.78,macro)*(1.0-rockW)*(1.0-sandW);
         vec3 splat=grassC;
         splat=mix(splat,dirtC,dirtW*0.85);
@@ -574,14 +582,22 @@ const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, u
 
 // Tiny villagers with simple walking motion.
 const people=new THREE.Group();world.add(people);
-const clothes=[0xb96b45,0x557a9a,0xd0a94e,0x71865b].map(c=>material(c));
+// Subtle woven fabric for clothes (GRAPHICS_TASK step 5): a near-white weave
+// map, so the four clothing colours stay as they were.
+const fabricTex=(()=>{ const cv=document.createElement('canvas'); cv.width=cv.height=128; const ctx=cv.getContext('2d');
+  ctx.fillStyle='#f6f3ee'; ctx.fillRect(0,0,128,128);
+  for(let y=0;y<128;y+=3){ ctx.fillStyle='rgba(90,80,70,0.10)'; ctx.fillRect(0,y,128,1); }
+  for(let x=0;x<128;x+=3){ ctx.fillStyle='rgba(90,80,70,0.07)'; ctx.fillRect(x,0,1,128); }
+  for(let i=0;i<700;i++){ ctx.fillStyle=`rgba(70,60,50,${Math.random()*.06})`; ctx.fillRect(Math.random()*128,Math.random()*128,1.6,1.6); }
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace; return t; })();
+const clothes=[0xb96b45,0x557a9a,0xd0a94e,0x71865b].map(c=>material(c,1,{map:fabricTex}));
 const skin=material(0xe0b58c);
 const villagers=[];
 const visibleVillagerLimit=100;
 for(let i=0;i<visibleVillagerLimit;i++){
   const g=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.28,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.095,9,8),skin);head.position.y=.54;g.add(head);
+  const body=new THREE.Mesh(new THREE.CapsuleGeometry(.10,.30,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.088,9,8),skin);head.position.y=.55;g.add(head);
   const arms=[];
   for(const side of [-1,1]){
     const arm=new THREE.Group();arm.position.set(side*.13,.39,0);
@@ -618,11 +634,18 @@ syncActivities = stats => {
 syncPopulation(1);
 
 // Light atmospheric clouds, kept above the playable island.
+// Step 6: one shared material with a mottled canvas map, so the puffs read as
+// soft cloud rather than plain white balls.
+const cloudTex=(()=>{ const cv=document.createElement('canvas'); cv.width=cv.height=128; const ctx=cv.getContext('2d');
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,128,128);
+  for(let i=0;i<46;i++){ const x=Math.random()*128,y=Math.random()*128,r=8+Math.random()*22; const g=ctx.createRadialGradient(x,y,1,x,y,r); const dark=Math.random()<.6; g.addColorStop(0,dark?'rgba(168,182,196,0.20)':'rgba(255,255,255,0.25)'); g.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); }
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace; return t; })();
+const cloudMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,transparent:true,opacity:.58,depthWrite:false,map:cloudTex});
 const clouds=new THREE.Group();scene.add(clouds);
 for(let i=0;i<8;i++){
   const cloud=new THREE.Group();
   for(let j=0;j<5;j++){
-    const puff=new THREE.Mesh(new THREE.SphereGeometry(1,12,9),new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,transparent:true,opacity:.58,depthWrite:false}));
+    const puff=new THREE.Mesh(new THREE.SphereGeometry(1,12,9),cloudMat);
     puff.scale.set(1.8,.38,1.05);puff.position.set((j-2)*1.05,Math.sin(j*1.7)*.12,Math.cos(j)*.25);cloud.add(puff);
   }
   cloud.position.set(-42+i*12,17+(i%3)*2.4,-27+(i%4)*14);cloud.scale.setScalar(.8+(i%3)*.16);clouds.add(cloud);
@@ -662,6 +685,75 @@ qualityBtn.addEventListener('click',()=>{
   location.href=url.toString();
 });
 document.querySelector('#pause').addEventListener('click',e=>{timeRunning=!timeRunning;e.currentTarget.textContent='時間：'+(timeRunning?'進行':'停止');document.querySelector('#mode').textContent=timeRunning?'観察モード — 村の一日が流れています':'観察モード — 時間を止めています';});
+
+// --- Atmosphere and time (GRAPHICS_TASK step 6) --------------------------
+// WORLD TIME starts at 08:00 and advances with elapsed (3 real seconds = 1
+// world minute, as the HUD clock already counted). The sun, sky, fog and
+// light levels follow it; when time is stopped, elapsed is frozen and so is
+// the light. Night keeps a moonlight floor so the world never goes black.
+// Bloom was not added: swapping the render path for an EffectComposer risks
+// the frame loop and the look for a marginal gain (task sheet: skip if heavy).
+const WORLD_START=8*60;
+const worldMinutes=()=> (WORLD_START + elapsed/3) % 1440;
+const _cA=new THREE.Color(), _cB=new THREE.Color();
+const SUN_DAY=new THREE.Color(0xffe3b5), SUN_DUSK=new THREE.Color(0xff8f4d), SUN_NIGHT=new THREE.Color(0x93b8e8);
+const FOG_DAY=new THREE.Color(0xbcd3da), FOG_DUSK=new THREE.Color(0xe9b287), FOG_NIGHT=new THREE.Color(0x27354a);
+function updateSun(){
+  const a=(worldMinutes()-360)/720*Math.PI;      // 06:00 sunrise -> 18:00 sunset
+  const elev=Math.sin(a);
+  const dayF=THREE.MathUtils.clamp((elev+0.02)/0.30,0,1);
+  const duskF=THREE.MathUtils.clamp(1-Math.abs(elev)*2.6,0,1)*(elev>-0.2?1:0);
+  const sx=-Math.cos(a)*46, sz=24;
+  // The sky follows the true sun (below the horizon at night, so it darkens),
+  // while the light itself swings to a moon position so shadows survive.
+  sky.material.uniforms.sunPosition.value.set(sx, elev*52, sz).normalize();
+  sun.position.set(sx, Math.abs(elev)*34+9, sz);
+  sun.color.lerpColors(SUN_NIGHT,SUN_DAY,dayF).lerp(SUN_DUSK,duskF*0.7);
+  sun.intensity=0.55+(3.0-0.55)*dayF;
+  hemi.intensity=0.34+(0.85-0.34)*dayF;
+  fill.intensity=0.16+(0.55-0.16)*dayF;
+  scene.fog.color.lerpColors(FOG_NIGHT,FOG_DAY,dayF).lerp(FOG_DUSK,duskF*0.55);
+  scene.background.copy(scene.fog.color);
+  sky.material.uniforms.rayleigh.value=0.5+1.3*dayF+duskF*1.7;
+  sky.material.uniforms.turbidity.value=2+4*dayF+duskF*3;
+  renderer.toneMappingExposure=0.84+0.16*dayF;
+  scene.environmentIntensity=0.14+0.36*dayF;
+}
+// Distant birds: dark silhouettes circling far above the island.
+const birds=[];
+{
+  const birdMat=new THREE.MeshBasicMaterial({color:0x33404a,side:THREE.DoubleSide});
+  for(let i=0;i<5;i++){
+    const b=new THREE.Group();
+    const mkWing=side=>{ const pivot=new THREE.Group(); const w=new THREE.Mesh(new THREE.PlaneGeometry(.95,.3),birdMat); w.rotation.x=-Math.PI/2; w.position.x=side*.5; pivot.add(w); b.add(pivot); return pivot; };
+    const wl=mkWing(-1), wr=mkWing(1);
+    scene.add(b);
+    birds.push({g:b,wl,wr,R:52+i*5,h:21+(i%3)*2.6,sp:.014+((i*7)%5)*.0022,ph:i*1.7});
+  }
+}
+// Dust motes drifting over the land in the light.
+let dustGeo=null, dustBase=null;
+{
+  const N=240, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    let x=0,z=0,tries=0;
+    do { x=(Math.random()*2-1)*21; z=(Math.random()*2-1)*21; } while(!onLand(x,z) && ++tries<9);
+    const y=terrainHeight(x,z)+.4+Math.random()*1.7;
+    pos.set([x,y,z],i*3); dustBase.set([x,y,z],i*3);
+  }
+  dustGeo=new THREE.BufferGeometry();
+  dustGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const cv=document.createElement('canvas'); cv.width=cv.height=64; const ctx=cv.getContext('2d');
+  const gr=ctx.createRadialGradient(32,32,2,32,32,30); gr.addColorStop(0,'rgba(255,244,200,1)'); gr.addColorStop(1,'rgba(255,244,200,0)');
+  ctx.fillStyle=gr; ctx.fillRect(0,0,64,64);
+  const dot=new THREE.CanvasTexture(cv);
+  const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({size:.16,map:dot,transparent:true,opacity:.30,depthWrite:false,color:0xfff3c4,blending:THREE.AdditiveBlending}));
+  scene.add(dust);
+}
+const clockEl=document.querySelector('#clock');
+const fmtClock=()=> 'WORLD TIME · '+String(Math.floor(worldMinutes()/60)).padStart(2,'0')+':'+String(Math.floor(worldMinutes()%60)).padStart(2,'0');
+clockEl.textContent=fmtClock();
+updateSun();
 
 const clock=new THREE.Clock();
 function animate(){
@@ -705,10 +797,29 @@ function animate(){
       v.g.position.y=terrainHeight(v.g.position.x,v.g.position.z)+.06;
     });
     // Population and settlement counts are now owned by the simulation module.
-    const mins=Math.floor(elapsed/3);
-    document.querySelector('#clock').textContent='WORLD TIME · '+String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+    clockEl.textContent=fmtClock();
   }
   if(autoRotate){yaw+=dt*.055;updateCamera();}
+  updateSun();
+  {
+    const t=performance.now()*0.001;
+    for(const b of birds){
+      const ang=t*b.sp+b.ph;
+      b.g.position.set(Math.cos(ang)*b.R, b.h+Math.sin(t*.3+b.ph)*1.4, Math.sin(ang)*b.R);
+      b.g.rotation.y=-ang;
+      const flap=Math.sin(t*6+b.ph*3)*.65;
+      b.wl.rotation.z=flap; b.wr.rotation.z=-flap;
+    }
+    if(dustGeo){
+      const pa=dustGeo.getAttribute('position');
+      for(let i=0;i<pa.count;i++){
+        pa.array[i*3]  =dustBase[i*3]  +Math.sin(t*.11+i*1.3)*1.3;
+        pa.array[i*3+1]=dustBase[i*3+1]+Math.sin(t*.45+i*2.1)*.3;
+        pa.array[i*3+2]=dustBase[i*3+2]+Math.cos(t*.09+i*.7)*1.3;
+      }
+      pa.needsUpdate=true;
+    }
+  }
   clouds.position.x=Math.sin(performance.now()*.000018)*2.2;
   if(waterScroll.length){
     const wt=performance.now()*0.001;
