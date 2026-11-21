@@ -266,25 +266,26 @@ if(HIGH){
   };
 }
 for(const l of lakeDefs) {
-  const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx*0.97,l.rz*0.97,0,Math.PI*2,false,0);
-  const geo=new THREE.ShapeGeometry(shape,48);
+  const lakeRx=l.rx*0.97, lakeRz=l.rz*0.97;
+  const shape=new THREE.Shape(); shape.absellipse(0,0,lakeRx,lakeRz,0,Math.PI*2,false,0);
+  // Higher tessellation keeps the shoreline smooth at close zoom.
+  const geo=new THREE.ShapeGeometry(shape,128);
   if(HIGH){
     const pos=geo.getAttribute('position'), n=pos.count;
     const loc=new Float32Array(n*2), rad=new Float32Array(n*2);
-    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=l.rx*0.97; rad[i*2+1]=l.rz*0.97; }
+    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=lakeRx; rad[i*2+1]=lakeRz; }
     geo.setAttribute('aLocal',new THREE.BufferAttribute(loc,2));
     geo.setAttribute('aRadii',new THREE.BufferAttribute(rad,2));
   }
-  // Per-lake water level: on sloped ground a shared level leaves the disc rim
-  // exposed on the downhill side (the forest lake looked afloat). Sample the
-  // rim and put the surface just below its lowest point so the shore closes
-  // all the way around.
+  // Sample the ACTUAL water-mesh rim. Previously the larger basin radius was
+  // sampled while a 0.97-sized disc was drawn, so sloping terrain could cut
+  // across the disc and leave only a crescent visible.
   let rimMin=Infinity;
-  for(let a=0;a<64;a++){
-    const t=a/64*Math.PI*2;
-    rimMin=Math.min(rimMin, terrainHeight(l.x+Math.cos(t)*l.rx, l.z+Math.sin(t)*l.rz));
+  for(let a=0;a<128;a++){
+    const t=a/128*Math.PI*2;
+    rimMin=Math.min(rimMin,terrainHeight(l.x+Math.cos(t)*lakeRx,l.z+Math.sin(t)*lakeRz));
   }
-  const level=Math.min(lakeWaterLevel, rimMin-0.03);
+  const level=Math.min(lakeWaterLevel,rimMin-0.045);
   const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,level,l.z); waterGroup.add(mesh);
 }
 // River: a flat ribbon sunk into the carved channel. The old raised tube
