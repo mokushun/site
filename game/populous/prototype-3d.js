@@ -192,14 +192,15 @@ if(HIGH){
 const terrain=new THREE.Mesh(terrainGeo,terrainMat);
 terrain.receiveShadow=true; terrain.castShadow=false; world.add(terrain);
 
-// Distant ocean and soft shoreline.
+// Distant ocean and soft shoreline: keep ocean below inland terrain so low
+// basins do not poke through dry ground as floating sheets.
 const oceanMat=new THREE.MeshPhysicalMaterial({color:0x4f9baa,roughness:.28,metalness:.04,clearcoat:.35,clearcoatRoughness:.4});
-const ocean=new THREE.Mesh(new THREE.PlaneGeometry(220,220),oceanMat);
-ocean.rotation.x=-Math.PI/2; ocean.position.y=-.68; ocean.receiveShadow=true; scene.add(ocean);
-const waterMat=new THREE.MeshPhysicalMaterial({color:0x438fa0,roughness:.22,metalness:.06,transparent:true,opacity:.94,clearcoat:.65});
+const ocean=new THREE.Mesh(new THREE.PlaneGeometry(240,240),oceanMat);
+ocean.rotation.x=-Math.PI/2; ocean.position.y=-1.45; ocean.receiveShadow=true; scene.add(ocean);
+const waterMat=new THREE.MeshPhysicalMaterial({color:0x438fa0,roughness:.22,metalness:.06,transparent:true,opacity:.92,clearcoat:.65,depthWrite:false});
 // Animated water (GRAPHICS_TASK step 3, HIGH only): a tileable normal map is
 // derived from summed sine waves (integer frequencies, so it wraps cleanly),
-// scrolled every frame in animate(). Lake shores get a foam ring texture.
+// scrolled every frame in animate().
 const waterScroll=[];
 const foamTime={value:0};
 function waterNormalTexture(size){
@@ -231,56 +232,63 @@ if(HIGH){
   waterMat.normalMap=waterNormals;
   waterMat.normalScale=new THREE.Vector2(0.32,0.32);
   waterMat.roughness=0.16;
-  waterMat.opacity=0.92;
+  waterMat.opacity=0.90;
   waterScroll.push({tex:waterNormals,sx:0.021,sy:0.014});
   const oceanNormals=waterNormalTexture(256);
-  oceanNormals.repeat.set(26,26);
+  oceanNormals.repeat.set(28,28);
   oceanMat.normalMap=oceanNormals;
   oceanMat.normalScale=new THREE.Vector2(0.2,0.2);
   oceanMat.roughness=0.17;
   waterScroll.push({tex:oceanNormals,sx:0.006,sy:0.004});
 }
 const waterGroup=new THREE.Group(); world.add(waterGroup);
-// Lake foam lives in the water surface itself (no separate plane, so it can
-// never float above the shore): each lake geometry carries its local xy and
-// its radii as attributes, and the shader whitens the rim band.
+// Lake water embeds slightly into the basin and fades out where the surface
+// meets or rises above the terrain so no floating disc edge appears.
+const lakeWaterLevel=-0.04;
 let lakeMat=waterMat;
 if(HIGH){
   lakeMat=waterMat.clone();
   lakeMat.onBeforeCompile=shader=>{
     shader.uniforms.uFoamTime=foamTime;
     shader.vertexShader=shader.vertexShader
-      .replace('#include <common>','#include <common>\nattribute vec2 aLocal;\nattribute vec2 aRadii;\nvarying vec2 vLocal;\nvarying vec2 vRadii;')
-      .replace('#include <begin_vertex>','#include <begin_vertex>\nvLocal=aLocal;\nvRadii=aRadii;');
+      .replace('#include <common>','#include <common>\nattribute vec2 aLocal;\nattribute vec2 aRadii;\nattribute float aBed;\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nvarying float vBed;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvLocal=aLocal;\nvRadii=aRadii;\nvBed=aBed;');
     shader.fragmentShader=shader.fragmentShader
-      .replace('#include <common>','#include <common>\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nuniform float uFoamTime;')
+      .replace('#include <common>','#include <common>\nvarying vec2 vLocal;\nvarying vec2 vRadii;\nvarying float vBed;\nuniform float uFoamTime;')
       .replace('#include <color_fragment>',`#include <color_fragment>
       {
         float fr=length(vLocal/vRadii);
-        float band=smoothstep(0.70,0.92,fr)*(1.0-smoothstep(0.90,0.97,fr));
-        float lap=0.85+0.15*sin(uFoamTime*1.7+fr*46.0);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.93,0.98,1.0),band*0.5*lap);
-        diffuseColor.a*=1.0-smoothstep(0.86,0.97,fr)*0.9;
+        float depth=max(0.0, (-0.04) - vBed);
+        float shoreFade=smoothstep(0.0, 0.14, depth) * (1.0 - smoothstep(0.86, 1.0, fr));
+        float rim=smoothstep(0.0, 0.04, depth) * (1.0 - smoothstep(0.04, 0.16, depth));
+        float lap=0.85+0.15*sin(uFoamTime*1.7+fr*36.0);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.92,0.97,1.0),rim*0.42*lap);
+        diffuseColor.a*=shoreFade;
       }`);
   };
 }
 for(const l of lakeDefs) {
-  const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx,l.rz,0,Math.PI*2,false,0);
-  const geo=new THREE.ShapeGeometry(shape,48);
-  geo.scale(0.97,0.97,1);
+  const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx*1.08,l.rz*1.08,0,Math.PI*2,false,0);
+  const geo=new THREE.ShapeGeometry(shape,56);
+  const pos=geo.getAttribute('position'), n=pos.count;
+  const bed=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const lx=pos.getX(i), ly=pos.getY(i);
+    bed[i]=terrainHeight(l.x+lx, l.z+ly);
+  }
+  geo.setAttribute('aBed',new THREE.BufferAttribute(bed,1));
   if(HIGH){
-    const pos=geo.getAttribute('position'), n=pos.count;
     const loc=new Float32Array(n*2), rad=new Float32Array(n*2);
-    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=l.rx; rad[i*2+1]=l.rz; }
+    for(let i=0;i<n;i++){ loc[i*2]=pos.getX(i); loc[i*2+1]=pos.getY(i); rad[i*2]=l.rx*1.08; rad[i*2+1]=l.rz*1.08; }
     geo.setAttribute('aLocal',new THREE.BufferAttribute(loc,2));
     geo.setAttribute('aRadii',new THREE.BufferAttribute(rad,2));
   }
-  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,-.03,l.z); waterGroup.add(mesh);
+  const mesh=new THREE.Mesh(geo,lakeMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,lakeWaterLevel,l.z); waterGroup.add(mesh);
 }
 const riverPoints=[];
-for(let x=-23;x<=23;x+=.5) riverPoints.push(new THREE.Vector3(x,terrainHeight(x,riverZ(x))+.025,riverZ(x)));
+for(let x=-23;x<=23;x+=.5) riverPoints.push(new THREE.Vector3(x,terrainHeight(x,riverZ(x))+.015,riverZ(x)));
 const riverCurve=new THREE.CatmullRomCurve3(riverPoints);
-const river=new THREE.Mesh(new THREE.TubeGeometry(riverCurve,180,.34,8,false),waterMat);
+const river=new THREE.Mesh(new THREE.TubeGeometry(riverCurve,180,.36,8,false),waterMat);
 waterGroup.add(river);
 
 // Forests: varied broadleaf crowns and slender conifers, all instanced for performance.
@@ -412,7 +420,7 @@ function displaceRadial(geo, amp, freq){
 const rockGeo=displaceRadial(new THREE.DodecahedronGeometry(.7,0),.13,2.6),rockMat=material(0x858779);
 const rocks=new THREE.InstancedMesh(rockGeo,rockMat,95);let rockCount=0;
 const rockPositions=[];
-for(let z=-20;z<=20;z+=2)for(let x=-20;x<=20;x+=2){
+for(let z=-20;z<=20;z+=2)for(let x=-20;z<=20;x+=2){
   if(rockCount>=95||!onLand(x,z)||Math.hypot(x,z)<8)continue;
   const h=terrainHeight(x,z);
   if(h>.72&&seeded(x+33,z-8)>.48){rockPositions.push({x,z});dummy.position.set(x,h+.07,z);dummy.scale.set(.6+seeded(x,z)*.9,.45+seeded(z,x)*.55,.55+seeded(x+4,z)*.7);dummy.rotation.set(seeded(x,z+4),seeded(z+4,x)*6,seeded(x+3,z)*.3);dummy.updateMatrix();rocks.setMatrixAt(rockCount++,dummy.matrix);}
@@ -662,7 +670,6 @@ function animate(){
     foamTime.value=wt;
     for(const w of waterScroll) w.tex.offset.set(wt*w.sx,wt*w.sy);
   }
-  waterGroup.position.y=Math.sin(performance.now()*.0008)*.012;
   renderer.render(scene,camera);
 }
 animate();
