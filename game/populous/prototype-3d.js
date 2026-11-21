@@ -197,11 +197,83 @@ const oceanMat=new THREE.MeshPhysicalMaterial({color:0x4f9baa,roughness:.28,meta
 const ocean=new THREE.Mesh(new THREE.PlaneGeometry(220,220),oceanMat);
 ocean.rotation.x=-Math.PI/2; ocean.position.y=-.68; ocean.receiveShadow=true; scene.add(ocean);
 const waterMat=new THREE.MeshPhysicalMaterial({color:0x438fa0,roughness:.22,metalness:.06,transparent:true,opacity:.94,clearcoat:.65});
+// Animated water (GRAPHICS_TASK step 3, HIGH only): a tileable normal map is
+// derived from summed sine waves (integer frequencies, so it wraps cleanly),
+// scrolled every frame in animate(). Lake shores get a foam ring texture.
+const waterScroll=[];
+function waterNormalTexture(size){
+  const cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d'); const img=ctx.createImageData(size,size);
+  const waves=[];
+  for(let i=0;i<8;i++){
+    const kx=Math.floor(Math.random()*7)-3, ky=Math.floor(Math.random()*7)-3;
+    if(!kx&&!ky) continue;
+    waves.push({kx,ky,ph:Math.random()*Math.PI*2,amp:1/Math.hypot(kx,ky)});
+  }
+  const hv=(x,y)=>{
+    let v=0;
+    for(const w of waves) v+=Math.sin((w.kx*x+w.ky*y)/size*Math.PI*2+w.ph)*w.amp;
+    return v;
+  };
+  for(let y=0;y<size;y++) for(let x=0;x<size;x++){
+    const dx=(hv(x-1,y)-hv(x+1,y))*0.9, dy=(hv(x,y-1)-hv(x,y+1))*0.9;
+    const inv=1/Math.hypot(dx,dy,1), i=(y*size+x)*4;
+    img.data[i]=(dx*inv*0.5+0.5)*255; img.data[i+1]=(dy*inv*0.5+0.5)*255; img.data[i+2]=(inv*0.5+0.5)*255; img.data[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  return tex;
+}
+function foamTexture(){
+  const size=256, cv=document.createElement('canvas'); cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  const g=ctx.createRadialGradient(size/2,size/2,size*0.30,size/2,size/2,size*0.5);
+  g.addColorStop(0,'rgba(255,255,255,0)');
+  g.addColorStop(0.70,'rgba(255,255,255,0)');
+  g.addColorStop(0.87,'rgba(255,255,255,0.5)');
+  g.addColorStop(0.96,'rgba(255,255,255,0.85)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  for(let i=0;i<900;i++){
+    const a=Math.random()*Math.PI*2, r=size*(0.40+Math.random()*0.09);
+    ctx.globalAlpha=Math.random()*0.5;
+    ctx.fillRect(size/2+Math.cos(a)*r, size/2+Math.sin(a)*r, 1.8, 1.8);
+  }
+  ctx.globalAlpha=1;
+  return new THREE.CanvasTexture(cv);
+}
+if(HIGH){
+  const waterNormals=waterNormalTexture(256);
+  waterMat.normalMap=waterNormals;
+  waterMat.normalScale=new THREE.Vector2(0.32,0.32);
+  waterMat.roughness=0.16;
+  waterMat.opacity=0.92;
+  waterScroll.push({tex:waterNormals,sx:0.021,sy:0.014});
+  const oceanNormals=waterNormalTexture(256);
+  oceanNormals.repeat.set(26,26);
+  oceanMat.normalMap=oceanNormals;
+  oceanMat.normalScale=new THREE.Vector2(0.2,0.2);
+  oceanMat.roughness=0.17;
+  waterScroll.push({tex:oceanNormals,sx:0.006,sy:0.004});
+}
 const waterGroup=new THREE.Group(); world.add(waterGroup);
 for(const l of lakeDefs) {
   const shape=new THREE.Shape(); shape.absellipse(0,0,l.rx,l.rz,0,Math.PI*2,false,0);
   const geo=new THREE.ShapeGeometry(shape,48);
   const mesh=new THREE.Mesh(geo,waterMat); mesh.rotation.x=-Math.PI/2; mesh.position.set(l.x,-.03,l.z); waterGroup.add(mesh);
+}
+if(HIGH){
+  const foamTex=foamTexture();
+  for(const l of lakeDefs){
+    const foam=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({map:foamTex,transparent:true,opacity:0.85,depthWrite:false}));
+    foam.rotation.x=-Math.PI/2;
+    foam.position.set(l.x,-0.012,l.z);
+    foam.scale.set(l.rx*1.05,l.rz*1.05,1);
+    foam.renderOrder=2;
+    waterGroup.add(foam);
+  }
 }
 const riverPoints=[];
 for(let x=-23;x<=23;x+=.5) riverPoints.push(new THREE.Vector3(x,terrainHeight(x,riverZ(x))+.025,riverZ(x)));
@@ -423,6 +495,10 @@ function animate(){
   }
   if(autoRotate){yaw+=dt*.055;updateCamera();}
   clouds.position.x=Math.sin(performance.now()*.000018)*2.2;
+  if(waterScroll.length){
+    const wt=performance.now()*0.001;
+    for(const w of waterScroll) w.tex.offset.set(wt*w.sx,wt*w.sy);
+  }
   waterGroup.position.y=Math.sin(performance.now()*.0008)*.012;
   renderer.render(scene,camera);
 }
