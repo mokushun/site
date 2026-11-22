@@ -17,7 +17,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const constructionSites = [];
   function createScaffold(x,z,type) {
     const g=new THREE.Group();g.position.set(x,terrainHeight(x,z)+.03,z);
-    const wood=mat(0x9a7446),beam=mat(0xb18a58);
+    const wood=mat(0x9a7446,{map:woodT,bumpMap:woodT,bumpScale:.3}),beam=mat(0xb18a58,{map:woodT,bumpMap:woodT,bumpScale:.3});
     const w=type==='farm'?1.45:.82,d=type==='farm'?1.2:.72,h=type==='farm'?.85:1.35;
     for(const sx of [-1,1])for(const sz of [-1,1]){
       const post=new THREE.Mesh(new THREE.BoxGeometry(.07,h,.07),wood);
@@ -41,9 +41,50 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xc9e8f4, size: .075, transparent: true, opacity: .8 }));
   rain.visible = false; world.add(rain);
 
-  const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 });
-  const wallMat = mat(0xcbb895), roofMat = mat(0x80513d), woodMat = mat(0x62452f);
-  const soilMat = mat(0x765c39), cropMats = [mat(0x81994d), mat(0x9eaa5a)];
+  const mat = (c, extra={}) => new THREE.MeshStandardMaterial({ color: c, roughness: 1, ...extra });
+  // Visible surface textures for the buildings and farms this module creates
+  // (presentation only, no logic change). The first step-5 pass textured the
+  // separate catalogue in prototype-3d-buildings.js, but the houses a player
+  // actually sees are built here — that is why nothing looked different.
+  // Textures are high-contrast and double as bump maps so the relief shows.
+  function simTex(size,draw){
+    const cv=document.createElement('canvas'); cv.width=cv.height=size;
+    draw(cv.getContext('2d'),size);
+    const t=new THREE.CanvasTexture(cv);
+    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace;
+    return t;
+  }
+  const srnd=(a,b)=>a+Math.random()*(b-a);
+  const plasterT=simTex(256,(ctx,S)=>{
+    ctx.fillStyle='#f6f0df'; ctx.fillRect(0,0,S,S);
+    for(let i=0;i<2400;i++){ ctx.fillStyle=`rgba(${Math.random()<.5?110:255},${100+Math.random()*40|0},70,${Math.random()*.10})`; ctx.fillRect(Math.random()*S,Math.random()*S,srnd(1,3.4),srnd(1,3.4)); }
+    for(let i=0;i<10;i++){ const x=Math.random()*S,y=Math.random()*S,r=srnd(20,58); const g=ctx.createRadialGradient(x,y,2,x,y,r); g.addColorStop(0,'rgba(140,112,78,0.20)'); g.addColorStop(1,'rgba(140,112,78,0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); }
+    const band=ctx.createLinearGradient(0,S*.8,0,S); band.addColorStop(0,'rgba(105,84,58,0)'); band.addColorStop(1,'rgba(105,84,58,0.42)'); ctx.fillStyle=band; ctx.fillRect(0,S*.8,S,S*.2);
+  });
+  const roofT=simTex(256,(ctx,S)=>{
+    ctx.fillStyle='#f4eee6'; ctx.fillRect(0,0,S,S);
+    const row=30,col=30;
+    for(let y=0;y<S;y+=row) for(let x=-col;x<S+col;x+=col){
+      const ox=(y/row)%2?col/2:0, v=srnd(-16,16);
+      ctx.fillStyle=`rgba(${168+v},${128+v},${104+v},0.42)`; ctx.fillRect(x+ox+1,y+1,col-2,row-2);
+      ctx.strokeStyle='rgba(52,30,20,0.65)'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(x+ox+col/2,y+row,col/2-1,Math.PI,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+ox+1,y); ctx.lineTo(x+ox+1,y+row); ctx.stroke();
+    }
+  });
+  const woodT=simTex(256,(ctx,S)=>{
+    ctx.fillStyle='#f3ece0'; ctx.fillRect(0,0,S,S);
+    for(let x=0;x<S;x+=2){ const v=Math.sin(x*.22)*10+Math.sin(x*.031+2)*16; ctx.fillStyle=`rgba(110,78,46,${.10+Math.abs(v)*.013})`; ctx.fillRect(x,0,2,S); }
+    ctx.fillStyle='rgba(80,55,30,0.5)'; for(let x=0;x<S;x+=52) ctx.fillRect(x,0,3,S);
+    for(let i=0;i<6;i++){ const x=Math.random()*S,y=Math.random()*S; ctx.strokeStyle='rgba(96,66,36,0.55)'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.ellipse(x,y,srnd(3,6),srnd(6,12),0,0,7); ctx.stroke(); }
+  });
+  const soilT=simTex(256,(ctx,S)=>{
+    ctx.fillStyle='#f2ecdf'; ctx.fillRect(0,0,S,S);
+    for(let y=0;y<S;y+=18){ ctx.fillStyle='rgba(70,50,26,0.34)'; ctx.fillRect(0,y,S,7); ctx.fillStyle='rgba(255,250,235,0.20)'; ctx.fillRect(0,y+9,S,4); }
+    for(let i=0;i<1800;i++){ ctx.fillStyle=`rgba(80,58,32,${Math.random()*.14})`; ctx.fillRect(Math.random()*S,Math.random()*S,2.4,2.4); }
+  });
+  const wallMat = mat(0xcbb895,{map:plasterT,bumpMap:plasterT,bumpScale:.5}), roofMat = mat(0x80513d,{map:roofT,bumpMap:roofT,bumpScale:.7}), woodMat = mat(0x62452f,{map:woodT,bumpMap:woodT,bumpScale:.4});
+  const soilMat = mat(0x765c39,{map:soilT,bumpMap:soilT,bumpScale:.4}), cropMats = [mat(0x81994d), mat(0x9eaa5a)];
   function buildHouse(x, z) {
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z), z);
     const base = new THREE.Mesh(new THREE.BoxGeometry(1.2,.78,1.05), wallMat); base.position.y=.4; base.castShadow=true; base.receiveShadow=true; g.add(base);

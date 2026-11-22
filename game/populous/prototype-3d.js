@@ -586,8 +586,9 @@ const people=new THREE.Group();world.add(people);
 // map, so the four clothing colours stay as they were.
 const fabricTex=(()=>{ const cv=document.createElement('canvas'); cv.width=cv.height=128; const ctx=cv.getContext('2d');
   ctx.fillStyle='#f6f3ee'; ctx.fillRect(0,0,128,128);
-  for(let y=0;y<128;y+=3){ ctx.fillStyle='rgba(90,80,70,0.10)'; ctx.fillRect(0,y,128,1); }
-  for(let x=0;x<128;x+=3){ ctx.fillStyle='rgba(90,80,70,0.07)'; ctx.fillRect(x,0,1,128); }
+  for(let y=0;y<128;y+=3){ ctx.fillStyle='rgba(70,58,45,0.22)'; ctx.fillRect(0,y,128,1); }
+  for(let x=0;x<128;x+=3){ ctx.fillStyle='rgba(70,58,45,0.16)'; ctx.fillRect(x,0,1,128); }
+  ctx.fillStyle='rgba(60,45,32,0.38)'; ctx.fillRect(0,74,128,7); ctx.fillRect(0,86,128,3);
   for(let i=0;i<700;i++){ ctx.fillStyle=`rgba(70,60,50,${Math.random()*.06})`; ctx.fillRect(Math.random()*128,Math.random()*128,1.6,1.6); }
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace; return t; })();
 const clothes=[0xb96b45,0x557a9a,0xd0a94e,0x71865b].map(c=>material(c,1,{map:fabricTex}));
@@ -597,7 +598,18 @@ const visibleVillagerLimit=100;
 for(let i=0;i<visibleVillagerLimit;i++){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.CapsuleGeometry(.10,.30,3,7),clothes[i%clothes.length]);body.position.y=.27;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.088,9,8),skin);head.position.y=.55;g.add(head);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.098,9,8),skin);head.position.y=.56;g.add(head);
+  // Visible individuality (step 5, strengthened): even-numbered villagers
+  // wear a straw hat, odd ones get a dark hair cap.
+  if(i%2===0){
+    const hat=new THREE.Group();
+    const brim=new THREE.Mesh(new THREE.CylinderGeometry(.175,.175,.02,10),material(0xd9b96a));hat.add(brim);
+    const htop=new THREE.Mesh(new THREE.ConeGeometry(.108,.095,10),material(0xcfa856));htop.position.y=.05;htop.castShadow=true;hat.add(htop);
+    hat.position.y=.625;g.add(hat);
+  }else{
+    const hair=new THREE.Mesh(new THREE.SphereGeometry(.102,9,7),material(0x4a3421));
+    hair.scale.set(1,.72,1);hair.position.y=.592;g.add(hair);
+  }
   const arms=[];
   for(const side of [-1,1]){
     const arm=new THREE.Group();arm.position.set(side*.13,.39,0);
@@ -687,14 +699,15 @@ qualityBtn.addEventListener('click',()=>{
 document.querySelector('#pause').addEventListener('click',e=>{timeRunning=!timeRunning;e.currentTarget.textContent='時間：'+(timeRunning?'進行':'停止');document.querySelector('#mode').textContent=timeRunning?'観察モード — 村の一日が流れています':'観察モード — 時間を止めています';});
 
 // --- Atmosphere and time (GRAPHICS_TASK step 6) --------------------------
-// WORLD TIME starts at 08:00 and advances with elapsed (3 real seconds = 1
-// world minute, as the HUD clock already counted). The sun, sky, fog and
+// WORLD TIME starts at 08:00 and advances with elapsed (1 real second = 2
+// world minutes; sped up from the original 3 s = 1 min at the user's request
+// on 2026-11-22, so a full day takes about 12 real minutes). The sun, sky, fog and
 // light levels follow it; when time is stopped, elapsed is frozen and so is
 // the light. Night keeps a moonlight floor so the world never goes black.
 // Bloom was not added: swapping the render path for an EffectComposer risks
 // the frame loop and the look for a marginal gain (task sheet: skip if heavy).
 const WORLD_START=8*60;
-const worldMinutes=()=> (WORLD_START + elapsed/3) % 1440;
+const worldMinutes=()=> (WORLD_START + elapsed*2) % 1440;
 const _cA=new THREE.Color(), _cB=new THREE.Color();
 const SUN_DAY=new THREE.Color(0xffe3b5), SUN_DUSK=new THREE.Color(0xff8f4d), SUN_NIGHT=new THREE.Color(0x93b8e8);
 const FOG_DAY=new THREE.Color(0xbcd3da), FOG_DUSK=new THREE.Color(0xe9b287), FOG_NIGHT=new THREE.Color(0x27354a);
