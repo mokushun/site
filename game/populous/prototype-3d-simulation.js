@@ -93,7 +93,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const roof = new THREE.Mesh(roofGeo,roofMat); roof.rotation.y=Math.PI/2; roof.position.set(-.59,.78,0); roof.castShadow=true; g.add(roof);
     const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
     g.visible=false;world.add(g);
-    const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:5});
+    const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:25});
     buildings.push({x,z,type:'house',occupants:houseCount===0?1:0});houseCount++;
   }
   function buildFarm(x,z,fertility) {
@@ -107,7 +107,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       cropPlants.push({mesh:crop,baseHeight,phase:(row*6+col)*.37});
     }
     g.visible=false;world.add(g);
-    const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:5});
+    const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:25});
     const site=farmEnvironment(x,z);
     farms.push({x,z,fertility,waterDistance:site.waterDistance??8,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
     const cell = nearestCell(x,z); if(cell) cell.farm=true;

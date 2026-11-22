@@ -69,7 +69,7 @@ const farmEnvironment = (x,z) => {
   return {land:onLand(x,z),slope,treeClearance,rockClearance,waterDistance};
 };
 const simulation = createWorldSimulation(THREE, world, terrain, terrainHeight, uiStatus, farmEnvironment);
-const villagersApi = createVillagers(world, terrainHeight);
+const villagersApi = createVillagers(world, terrainApi, nature.treePositions);
 syncPopulation = villagersApi.syncPopulation;
 syncActivities = villagersApi.syncActivities;
 // Orbit / pan / zoom camera.
