@@ -5,6 +5,7 @@
 // elapsed freezes when time is stopped, and so does the light.
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { WORLD_MIN_PER_SEC } from './prototype-3d-utils.js';
 
 export function createAtmosphere(scene, renderer, T, HIGH){
 const { onLand, terrainHeight } = T;
@@ -59,15 +60,15 @@ for(let i=0;i<8;i++){
   cloud.position.set(-42+i*12,17+(i%3)*2.4,-27+(i%4)*14);cloud.scale.setScalar(.8+(i%3)*.16);clouds.add(cloud);
 }
 // --- Atmosphere and time (GRAPHICS_TASK step 6) --------------------------
-// WORLD TIME starts at 08:00 and advances with elapsed (1 real second = 2
-// world minutes; sped up from the original 3 s = 1 min at the user's request
-// on 2026-11-22, so a full day takes about 12 real minutes). The sun, sky, fog and
+// WORLD TIME starts at 08:00 and advances with elapsed at WORLD_MIN_PER_SEC
+// (6 world minutes per real second since 2026-11-22, 3x the previous rate at
+// the user's request, so a full day takes about 4 real minutes). The sun, sky, fog and
 // light levels follow it; when time is stopped, elapsed is frozen and so is
 // the light. Night keeps a moonlight floor so the world never goes black.
 // Bloom was not added: swapping the render path for an EffectComposer risks
 // the frame loop and the look for a marginal gain (task sheet: skip if heavy).
 const WORLD_START=8*60;
-const worldMinutes=(elapsed)=> (WORLD_START + elapsed*2) % 1440;
+const worldMinutes=(elapsed)=> (WORLD_START + elapsed*WORLD_MIN_PER_SEC) % 1440;
 const _cA=new THREE.Color(), _cB=new THREE.Color();
 const SUN_DAY=new THREE.Color(0xffe3b5), SUN_DUSK=new THREE.Color(0xff8f4d), SUN_NIGHT=new THREE.Color(0x93b8e8);
 const FOG_DAY=new THREE.Color(0xbcd3da), FOG_DUSK=new THREE.Color(0xe9b287), FOG_NIGHT=new THREE.Color(0x27354a);

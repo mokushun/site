@@ -5,6 +5,11 @@
 import * as THREE from 'three';
 
 export const timeU = { value: 0 };
+// WORLD TIME rate: world minutes per real second (shared by the atmosphere
+// and the villagers' day/night routine so they can never drift apart).
+// 6 since 2026-11-22 (3x the previous 2; a full day takes about 4 minutes).
+// The simulation economy runs on plain seconds and is NOT scaled by this.
+export const WORLD_MIN_PER_SEC = 6;
 export const material = (color, roughness = 1, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, ...extra });
 export const seeded = (x, z) => {
   const n = Math.sin(x * 127.1 + z * 311.7 + 19.19) * 43758.5453123;

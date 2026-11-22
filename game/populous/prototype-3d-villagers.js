@@ -18,7 +18,7 @@
 // At night (19:30-05:30 WORLD TIME) everyone goes home and sleeps inside
 // their house (invisible). With no house yet, they stay at the centre.
 import * as THREE from 'three';
-import { material, seeded } from './prototype-3d-utils.js';
+import { material, seeded, WORLD_MIN_PER_SEC } from './prototype-3d-utils.js';
 
 export function createVillagers(world, T, treePositions){
 const { terrainHeight, onLand } = T;
@@ -97,8 +97,8 @@ syncActivities = stats => {
 syncPopulation(1);
 
 // WORLD TIME minutes, same formula as the atmosphere module (08:00 start,
-// 1 real second = 2 world minutes). Work 05:30-19:30, sleep otherwise.
-const worldMinutes = elapsed => (480 + elapsed*2) % 1440;
+// WORLD_MIN_PER_SEC world minutes). Work 05:30-19:30, sleep otherwise.
+const worldMinutes = elapsed => (480 + elapsed*WORLD_MIN_PER_SEC) % 1440;
 const DAWN = 5*60+30, DUSK = 19*60+30;
 
 function workSpotFor(v, i){
