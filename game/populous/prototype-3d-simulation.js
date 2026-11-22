@@ -94,7 +94,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
     g.visible=false;world.add(g);
     const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:25});
-    buildings.push({x,z,type:'house',occupants:houseCount===0?1:0});houseCount++;
+    buildings.push({x,z,type:'house',occupants:houseCount===0?1:0,done:false});houseCount++;
   }
   function buildFarm(x,z,fertility) {
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z)+.025, z);
@@ -179,7 +179,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     food=Math.max(0,food+foodRate*5-population*.72);
     // The first person can forage, but lasting population growth requires housing.
     if(houseCount>0 && food>population*4 && population<houseCount*3){
-      const home=buildings.filter(b=>b.type==='house').find(b=>(b.occupants||0)<3);
+      const home=buildings.filter(b=>b.type==='house'&&b.done).find(b=>(b.occupants||0)<3);
       if(home){home.occupants=(home.occupants||0)+1;population++;food-=population*.8;births.push({x:home.x,z:home.z,house:buildings.indexOf(home)});}
     }
     else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
@@ -197,14 +197,14 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       }
     }
     updateTerrainColors();
-    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house').map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z})),forestLocation:{x:17,z:-8}});
+    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house'&&b.done).map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z})),forestLocation:{x:17,z:-8}});
   }
   function update(dt) {
     elapsed+=dt;
     for(let i=constructionSites.length-1;i>=0;i--){
       const site=constructionSites[i];site.remaining-=dt;
       // Reveal the finished structure after a short visible construction phase.
-      if(site.remaining<=0){site.building.visible=true;world.remove(site.scaffold);constructionSites.splice(i,1);}
+      if(site.remaining<=0){site.building.visible=true;world.remove(site.scaffold);constructionSites.splice(i,1);const doneB=buildings.find(b=>b.x===site.building.position.x&&b.z===site.building.position.z);if(doneB)doneB.done=true;}
     }
     if(rainLeft>0){
       rainLeft-=dt;rain.visible=true;
