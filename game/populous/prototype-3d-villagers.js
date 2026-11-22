@@ -121,7 +121,7 @@ function workSpotFor(v, i){
     return { spot: tree, anim:'logging' };
   }
   if(v.job==='build'){
-    if(sites.length) return { spot: sites[0], anim:'build' };
+    if(sites.length) return { spot: sites.find(s=>s.type==='house') || sites[0], anim:'build' };
     return { spot: {x:0,z:0}, anim:null }; // no site: wait at the centre
   }
   return { spot: activityTargets.forest, anim:null }; // carry handled separately
@@ -143,7 +143,7 @@ function update(dt, elapsed){
     } else if(v.job==='carry'){
       // Haul loop: forest (load) -> site/centre (unload) -> forest ...
       const drop=activityTargets.construction[0]||{x:0,z:0};
-      const forest=activityTargets.forest;
+      const forest=(treePositions&&treePositions.length)?treePositions[(i*7)%treePositions.length]:activityTargets.forest;
       dest = v.loaded ? drop : forest;
       atDest = v.loaded ? 'unload' : 'load';
     } else {

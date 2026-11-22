@@ -17,8 +17,25 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const constructionSites = [];
   function createScaffold(x,z,type) {
     const g=new THREE.Group();g.position.set(x,terrainHeight(x,z)+.03,z);
+    if(type==='farm'){
+      // Land clearing (開墾中): bare tilled soil, corner stakes and dirt
+      // mounds — no wooden frame, so it never reads as a building site.
+      const patch=new THREE.Mesh(new THREE.BoxGeometry(2.1,.07,1.75),mat(0x6e5136,{map:soilT,bumpMap:soilT,bumpScale:.35}));
+      patch.position.y=.035;patch.receiveShadow=true;g.add(patch);
+      const stakeM=mat(0x8a6a44);
+      for(const sx of [-1,1])for(const sz of [-1,1]){
+        const stake=new THREE.Mesh(new THREE.BoxGeometry(.06,.3,.06),stakeM);
+        stake.position.set(sx*1.02,.15,sz*.85);stake.rotation.z=sx*.12;g.add(stake);
+      }
+      const moundM=mat(0x7d5f3d);
+      for(const [mx,mz,ms] of [[-.55,-.35,1],[.5,.3,.8],[.1,-.55,.65]]){
+        const mound=new THREE.Mesh(new THREE.SphereGeometry(.17,7,5),moundM);
+        mound.scale.set(ms,ms*.45,ms);mound.position.set(mx,.09,mz);g.add(mound);
+      }
+      world.add(g);return g;
+    }
     const wood=mat(0x9a7446,{map:woodT,bumpMap:woodT,bumpScale:.3}),beam=mat(0xb18a58,{map:woodT,bumpMap:woodT,bumpScale:.3});
-    const w=type==='farm'?1.45:.82,d=type==='farm'?1.2:.72,h=type==='farm'?.85:1.35;
+    const w=.82,d=.72,h=1.35;
     for(const sx of [-1,1])for(const sz of [-1,1]){
       const post=new THREE.Mesh(new THREE.BoxGeometry(.07,h,.07),wood);
       post.position.set(sx*w/2,h/2,sz*d/2);post.castShadow=true;g.add(post);
@@ -93,7 +110,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const roof = new THREE.Mesh(roofGeo,roofMat); roof.rotation.y=Math.PI/2; roof.position.set(-.59,.78,0); roof.castShadow=true; g.add(roof);
     const door = new THREE.Mesh(new THREE.BoxGeometry(.22,.42,.04),woodMat); door.position.set(0,.22,.55);g.add(door);
     g.visible=false;world.add(g);
-    const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:25});
+    const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:25,type:'house'});
     buildings.push({x,z,type:'house',occupants:houseCount===0?1:0,done:false});houseCount++;
   }
   function buildFarm(x,z,fertility) {
@@ -107,7 +124,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       cropPlants.push({mesh:crop,baseHeight,phase:(row*6+col)*.37});
     }
     g.visible=false;world.add(g);
-    const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:25});
+    const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:25,type:'farm'});
     const site=farmEnvironment(x,z);
     farms.push({x,z,fertility,waterDistance:site.waterDistance??8,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
     const cell = nearestCell(x,z); if(cell) cell.farm=true;
@@ -116,7 +133,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   function availableSpot(type) {
     const candidates=[];
     for(let z=-14;z<=14;z+=2)for(let x=-14;x<=14;x+=2){
-      if(Math.hypot(x,z)<5 || Math.hypot(x,z)>17) continue;
+      if(Math.hypot(x,z)<2.5 || Math.hypot(x,z)>17) continue;
       const cell=nearestCell(x,z); if(!cell || cell.farm && type==='farm') continue;
       if(type==='farm'){
         if(cell.fertility<(farmCount===0?.45:.58)) continue;
@@ -197,7 +214,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       }
     }
     updateTerrainColors();
-    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house'&&b.done).map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z})),forestLocation:{x:17,z:-8}});
+    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house'&&b.done).map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z,type:s.type})),forestLocation:{x:17,z:-8}});
   }
   function update(dt) {
     elapsed+=dt;

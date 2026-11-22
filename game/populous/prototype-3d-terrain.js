@@ -7,8 +7,32 @@ import * as THREE from 'three';
 import { seeded, smooth } from './prototype-3d-utils.js';
 
 export function createTerrain(world, HIGH){
-const lakeDefs = [{x:-13,z:7,rx:5.2,rz:3.8},{x:-8,z:-12,rx:3.8,rz:2.8},{x:15,z:10,rx:4.1,rz:3.2}];
-const riverZ = x => -4.8 + Math.sin(x * 0.105) * 3.3 + Math.sin(x * 0.24) * 0.75;
+// Per-run landscape (2026-11-22, user request): the lakes, the river's
+// course and the hill phases are redrawn on every load, so no two visits
+// share the same map. The centre (about r < 5.5) is always kept dry so the
+// village starts on open land, and the river is kept out of the centre too.
+const _R = Math.random;
+const lakeDefs = [];
+for (let tries = 0; tries < 80 && lakeDefs.length < 3; tries++) {
+  const a = _R() * Math.PI * 2, r = 10.5 + _R() * 6;
+  const l = { x: Math.cos(a) * r, z: Math.sin(a) * r, rx: 3.4 + _R() * 2, rz: 2.6 + _R() * 1.6 };
+  if (Math.hypot(l.x, l.z) - Math.max(l.rx, l.rz) < 5.5) continue;
+  if (lakeDefs.some(o => Math.hypot(o.x - l.x, o.z - l.z) < 9)) continue;
+  lakeDefs.push(l);
+}
+for (const d of [{x:-13,z:7,rx:5.2,rz:3.8},{x:-8,z:-12,rx:3.8,rz:2.8},{x:15,z:10,rx:4.1,rz:3.2}]) {
+  if (lakeDefs.length >= 3) break;
+  if (!lakeDefs.some(o => Math.hypot(o.x - d.x, o.z - d.z) < 9)) lakeDefs.push(d);
+}
+let riverZ = x => -4.8 + Math.sin(x * 0.105) * 3.3 + Math.sin(x * 0.24) * 0.75;
+for (let tries = 0; tries < 40; tries++) {
+  const base = (_R() < .5 ? -1 : 1) * (4.6 + _R() * 2.4), p1 = _R() * 6.283, p2 = _R() * 6.283;
+  const f = x => base + Math.sin(x * 0.105 + p1) * 3.3 + Math.sin(x * 0.24 + p2) * 0.75;
+  let ok = true;
+  for (let x = -7; x <= 7; x += .5) if (Math.abs(f(x)) < 3.6) { ok = false; break; }
+  if (ok) { riverZ = f; break; }
+}
+const _ph1 = _R() * 6.283, _ph2 = _R() * 6.283, _ph3 = _R() * 6.283, _ph4 = _R() * 6.283;
 // lakeDistance also records which lake is nearest in _lakeIdx (no allocation).
 let _lakeIdx = 0;
 function lakeDistance(x,z) {
@@ -23,9 +47,9 @@ function lakeDistance(x,z) {
 function riverDistance(x,z) { return Math.abs(z-riverZ(x)); }
 // Terrain before lakes and the river are carved into it.
 function naturalHeight(x,z) {
-  const broad = Math.sin(x*.17+1.2)*.52 + Math.cos(z*.2-.7)*.42 + Math.sin((x+z)*.105)*.3;
+  const broad = Math.sin(x*.17+1.2+_ph1)*.52 + Math.cos(z*.2-.7+_ph2)*.42 + Math.sin((x+z)*.105+_ph3)*.3;
   const detail = Math.sin(x*.48+z*.23)*.09 + Math.cos(z*.51-x*.16)*.07;
-  const hill = Math.max(0, Math.sin(x*.115+z*.07)*Math.cos(z*.13-x*.06)) * .78;
+  const hill = Math.max(0, Math.sin(x*.115+z*.07+_ph4)*Math.cos(z*.13-x*.06+_ph3)) * .78;
   const edge = smooth(24, 29, Math.max(Math.abs(x),Math.abs(z)));
   return broad + detail + hill - edge*1.15;
 }
