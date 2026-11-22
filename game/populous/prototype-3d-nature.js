@@ -108,7 +108,7 @@ for(let z=-22;z<=22;z+=.72) for(let x=-22;x<=22;x+=.72) {
     dummy.position.set(px,y+.32*s,pz);dummy.scale.set(s,s,s);dummy.rotation.set(0,seeded(z,x)*6,0);dummy.updateMatrix();trunks.setMatrixAt(treeCount,dummy.matrix);
     const pine=seeded(x+13,z+5)>.56;
     const pal=pine?pinePal:broadPal, mesh=pine?pineMesh:broadMesh, slot=pine?pineTotal++:broadTotal++;
-    dummy.position.y += pine ? 0.85*s : 0.9*s;dummy.scale.set(s*(pine ? 0.9 : 1.2),s*(pine ? 1.15 : 1),s*(pine ? 0.9 : 1.1));dummy.updateMatrix();mesh.setMatrixAt(slot,dummy.matrix);
+    dummy.position.y += 0.3*s;dummy.scale.set(s*(pine ? 0.9 : 1.2),s*(pine ? 1.15 : 1),s*(pine ? 0.9 : 1.1));dummy.updateMatrix();mesh.setMatrixAt(slot,dummy.matrix);
     const cc=pal[Math.floor(seeded(x+5,z+15)*pal.length)].clone();
     cc.offsetHSL((seeded(x+9,z+27)-.5)*.02,0,(seeded(x+21,z+2)-.5)*.06);
     mesh.setColorAt(slot,cc);
