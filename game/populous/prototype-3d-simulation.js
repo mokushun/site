@@ -15,6 +15,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     faithCapBase: 40, faithCapPerHouse: 8,
     faithSurplusRate: .1,      // per person per tick while food > population*2
     faithStarvationLoss: 5,
+    faithFloorRate: 1,         // per tick while faith is below the rain minimum (see tick)
     rainMinFaith: 10, rainCostPerSecond: 2, rainFertilityPerSecond: .02, rainRadius: 4,
     newFarmFertilityJitter: .12,
   };
@@ -242,6 +243,11 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       if(freed)freed.occupants--;}
     // Faith (GAMEPLAY_TASK step 2): grows while the village eats well.
     if(food>population*2) faith=Math.min(faithCap,faith+population*TUNING.faithSurplusRate);
+    // A baseline of prayer: faith always recovers up to the rain minimum,
+    // so a starving village can never be locked out of the miracle for
+    // good (before this, harvest-only income plus starvation penalties
+    // could pin faith near 0 forever: no rain, no recovery, no growth).
+    if(faith<TUNING.rainMinFaith) faith=Math.min(TUNING.rainMinFaith,faith+TUNING.faithFloorRate);
     faith=Math.min(faith,faithCap);
     if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.ceil((population+1)/5)) && food>35 && wood>=4)){
       const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('水辺に近い平地に農地が作られました');}
