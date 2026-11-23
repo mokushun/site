@@ -1,4 +1,31 @@
-export function createWorldSimulation(THREE, world, terrain, terrainHeight, onStatus, farmEnvironment = () => ({land:true,slope:0,treeClearance:99,rockClearance:99,waterDistance:4})) {
+import { createCropField } from './prototype-3d-crops.js';
+export function createWorldSimulation(THREE, world, terrain, terrainHeight, onStatus, farmEnvironment = () => ({land:true,slope:0,treeClearance:99,rockClearance:99,waterDistance:4}), highQuality = true) {
+  // GAMEPLAY_TASK (2026-11-22): all gameplay balance values live here.
+  const TUNING = {
+    tickSeconds: 5,
+    crops: [ // tier 1..3: growth length (ticks), base yield, fertility lost per harvest, faith per harvest
+      { name: '麦', growthTicks: 6, yieldBase: 20, fertilityLoss: .06, faith: 1 },
+      { name: '豆・野菜', growthTicks: 6, yieldBase: 26, fertilityLoss: .045, faith: 2 },
+      { name: '果樹', growthTicks: 8, yieldBase: 34, fertilityLoss: .07, faith: 3 },
+    ],
+    farmRegen: .004,           // per tick, far below the harvest loss
+    waterReliefMax: .30,       // harvest loss reduced by up to 30% beside water
+    consumePerPerson: .72,     // food per person per tick (unchanged from before)
+    foragePerPerson: .9,       // food per person per tick while no farm is active yet
+    faithCapBase: 40, faithCapPerHouse: 8,
+    faithSurplusRate: .1,      // per person per tick while food > population*2
+    faithStarvationLoss: 5,
+    rainMinFaith: 10, rainCostPerSecond: 2, rainFertilityPerSecond: .02, rainRadius: 4,
+    newFarmFertilityJitter: .12,
+  };
+  const TIER_UP = [.6, .8], TIER_DOWN = [.55, .75];
+  function tierFor(f, cur) {
+    let t = cur;
+    while (t < 2 && f >= TIER_UP[t]) t++;
+    while (t > 0 && f < TIER_DOWN[t - 1]) t--;
+    return t;
+  }
+  const hash2 = (x, z) => { const n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return n - Math.floor(n); };
   const size = 40, step = 2, count = size / step;
   const cells = [];
   for (let z = 0; z < count; z++) for (let x = 0; x < count; x++) {
@@ -9,7 +36,7 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
   const baseColors = terrain.geometry.attributes.color.array.slice();
   const colors = terrain.geometry.attributes.color;
   // Fertility is mapped to the nearest logical cell; the terrain mesh remains continuous.
-  let mode = 'observe', rainLeft = 0, elapsed = 0, food = 8, wood = 10, population = 1;
+  let elapsed = 0, food = 8, wood = 10, population = 1, faith = 0;
   const births = [];
   let farmCount = 0, houseCount = 0, foodRate = 0, nextTick = 0;
   const buildings = [];
@@ -46,18 +73,6 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     }
     world.add(g);return g;
   }
-  const rainCount = 360;
-  const rainPositions = new Float32Array(rainCount * 3);
-  for (let i = 0; i < rainCount; i++) {
-    rainPositions[i*3] = (Math.random() - .5) * 48;
-    rainPositions[i*3+1] = Math.random() * 18 + 2;
-    rainPositions[i*3+2] = (Math.random() - .5) * 48;
-  }
-  const rainGeo = new THREE.BufferGeometry();
-  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-  const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0xc9e8f4, size: .075, transparent: true, opacity: .8 }));
-  rain.visible = false; world.add(rain);
-
   const mat = (c, extra={}) => new THREE.MeshStandardMaterial({ color: c, roughness: 1, ...extra });
   // Visible surface textures for the buildings and farms this module creates
   // (presentation only, no logic change). The first step-5 pass textured the
@@ -101,7 +116,6 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     for(let i=0;i<1800;i++){ ctx.fillStyle=`rgba(80,58,32,${Math.random()*.14})`; ctx.fillRect(Math.random()*S,Math.random()*S,2.4,2.4); }
   });
   const wallMat = mat(0xcbb895,{map:plasterT,bumpMap:plasterT,bumpScale:.5}), roofMat = mat(0x80513d,{map:roofT,bumpMap:roofT,bumpScale:.7}), woodMat = mat(0x62452f,{map:woodT,bumpMap:woodT,bumpScale:.4});
-  const soilMat = mat(0x765c39,{map:soilT,bumpMap:soilT,bumpScale:.4}), cropMats = [mat(0x81994d), mat(0x9eaa5a)];
   function buildHouse(x, z) {
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z), z);
     const base = new THREE.Mesh(new THREE.BoxGeometry(1.2,.78,1.05), wallMat); base.position.y=.4; base.castShadow=true; base.receiveShadow=true; g.add(base);
@@ -113,20 +127,18 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     const scaffold=createScaffold(x,z,'house');constructionSites.push({scaffold,building:g,remaining:25,type:'house'});
     buildings.push({x,z,type:'house',occupants:houseCount===0?1:0,done:false});houseCount++;
   }
-  function buildFarm(x,z,fertility) {
+  function buildFarm(x,z,cellFertility) {
+    // Each farm owns its fertility now: the cell value plus a fixed per-farm
+    // jitter (position hash), then it lives and declines on its own.
+    const fertility = THREE.MathUtils.clamp(cellFertility + (hash2(x * 1.71 + 31.7, z * 2.33 + 11.1) - .5) * 2 * TUNING.newFarmFertilityJitter, .05, 1);
     const g = new THREE.Group(); g.position.set(x, terrainHeight(x,z)+.025, z);
-    const plot = new THREE.Mesh(new THREE.BoxGeometry(2.5,.045,2.1),soilMat); plot.receiveShadow=true;g.add(plot);
-    const cropPlants=[];
-    for(let row=0;row<5;row++) for(let col=0;col<6;col++){
-      const baseHeight=.24+fertility*.16;
-      const crop = new THREE.Mesh(new THREE.ConeGeometry(.075,baseHeight,5),cropMats[(row+col)%2]);
-      crop.position.set(-.95+col*.38,baseHeight*.55,-.72+row*.36);crop.castShadow=true;g.add(crop);
-      cropPlants.push({mesh:crop,baseHeight,phase:(row*6+col)*.37});
-    }
+    const tier = tierFor(fertility, 0);
+    const field = createCropField(tier, fertility, highQuality);
+    g.add(field.group);
     g.visible=false;world.add(g);
     const scaffold=createScaffold(x,z,'farm');constructionSites.push({scaffold,building:g,remaining:25,type:'farm'});
     const site=farmEnvironment(x,z);
-    farms.push({x,z,fertility,waterDistance:site.waterDistance??8,group:g,cropPlants});buildings.push({x,z,type:'farm'});farmCount++;
+    farms.push({x,z,fertility,waterDistance:site.waterDistance??8,group:g,field,tier,growth:0,active:false});buildings.push({x,z,type:'farm'});farmCount++;
     const cell = nearestCell(x,z); if(cell) cell.farm=true;
   }
   function nearestCell(x,z) { let best=null,dist=Infinity; for(const c of cells){const d=(c.x-x)**2+(c.z-z)**2;if(d<dist){dist=d;best=c;}}return best; }
@@ -165,41 +177,67 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     }
     colors.needsUpdate=true;
   }
-  function affectFertility(x,z,amount,radius=5) {
-    for(const c of cells){const d=Math.hypot(c.x-x,c.z-z);if(d<radius){const w=1-d/radius;c.fertility=THREE.MathUtils.clamp(c.fertility+amount*w,.08,1);c.moisture=THREE.MathUtils.clamp(c.moisture+amount*.55*w,0,1);}}
-    updateTerrainColors();
-    onStatus('土地の肥沃度を高めた。農地が育ちやすくなります');
+  // Blessed rain (GAMEPLAY_TASK step 3): the miracle module calls this
+  // every frame while its cloud is out. Faith drains per second; farms and
+  // cells under the cloud regain fertility. Returns false when faith is
+  // gone, so the caller can dismiss the cloud. This replaces the old free
+  // fertility tool and free rain (both removed).
+  let cellsDirty = false, colorTimer = 0;
+  function applyBlessedRain(x, z, dt) {
+    if (faith <= 0) return false;
+    faith = Math.max(0, faith - TUNING.rainCostPerSecond * dt);
+    const r = TUNING.rainRadius;
+    for (const f of farms) {
+      const d = Math.hypot(f.x - x, f.z - z);
+      if (d < r + 1.2) f.fertility = Math.min(1, f.fertility + TUNING.rainFertilityPerSecond * dt * Math.max(0, 1 - d / (r + 1.2) * .8));
+    }
+    for (const c of cells) {
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < r) { const w = 1 - d / r; c.fertility = Math.min(1, c.fertility + .008 * dt * w); c.moisture = Math.min(1, c.moisture + .05 * dt * w); cellsDirty = true; }
+    }
+    return faith > 0;
   }
-  function startRain() { rainLeft=16;rain.visible=true;mode='observe';onStatus('雨が降り始めた。土壌の水分と肥沃度が上がります'); }
-  function setMode(next) { mode=next;onStatus(mode==='fertility'?'肥沃度を変える場所をクリックしてください':'観察モード'); }
-  function handleClick(event,camera,canvas) {
-    if(mode!=='fertility')return false;
-    const rect=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-((event.clientY-rect.top)/rect.height)*2+1);
-    const ray=new THREE.Raycaster();ray.setFromCamera(mouse,camera);const hit=ray.intersectObject(terrain,false)[0];
-    if(hit){affectFertility(hit.point.x,hit.point.z,.28,5.5);mode='observe';return true;}
-    return false;
-  }
+  function canBless() { return faith >= TUNING.rainMinFaith; }
   function tick() {
-    const avg=cells.reduce((s,c)=>s+c.fertility,0)/cells.length;
+    const faithCap=TUNING.faithCapBase+buildings.filter(b=>b.type==='house'&&b.done).length*TUNING.faithCapPerHouse;
+    // Per-farm growth and harvest (GAMEPLAY_TASK step 1). A farm grows for
+    // its crop's growthTicks, then harvests: food jumps, fertility drops.
     farms.forEach(f=>{
-      const c=nearestCell(f.x,f.z);f.fertility=c?c.fertility:f.fertility;
-      // Fertile soil produces taller, fuller-looking crops; poor soil leaves them short.
-      const growth=.55+f.fertility*1.35;
-      f.cropPlants.forEach(plant=>{
-        const height=plant.baseHeight*growth;
-        plant.mesh.scale.y=growth;
-        plant.mesh.position.y=height*.55;
-      });
+      if(f.active){
+        f.fertility=Math.min(1,f.fertility+TUNING.farmRegen);
+        f.growth++;
+        const def=TUNING.crops[f.tier];
+        if(f.growth>=def.growthTicks){
+          f.growth=0;
+          food+=def.yieldBase*(0.4+f.fertility);
+          faith+=def.faith;
+          const relief=THREE.MathUtils.clamp(1-f.waterDistance/8.5,0,1)*TUNING.waterReliefMax;
+          f.fertility=THREE.MathUtils.clamp(f.fertility-def.fertilityLoss*(1-relief),.05,1);
+          const nt=tierFor(f.fertility,f.tier);
+          if(nt!==f.tier){
+            onStatus(nt>f.tier?`畑が肥沃になり、${TUNING.crops[nt].name}が育つようになった`:`畑が痩せて、${TUNING.crops[nt].name}に戻った`);
+            f.tier=nt;
+            f.field.setTier(nt);
+          }
+        }
+      }
+      // The field module draws growth progress, wilting and soil colour.
+      const def=TUNING.crops[f.tier];
+      f.field.update(f.active?f.growth/def.growthTicks:0, f.fertility, elapsed);
     });
-    foodRate=farms.reduce((s,f)=>s+(1.7+f.fertility*1.6+Math.max(0,1-f.waterDistance/9)*.65),0)+(farmCount===0?population*.18:0);
+    // Informational only now: expected food per tick from the standing farms.
+    foodRate=farms.reduce((s,f)=>s+(f.active?TUNING.crops[f.tier].yieldBase*(0.4+f.fertility)/TUNING.crops[f.tier].growthTicks:0),0);
     wood=Math.min(80,wood+population*.22*5);
-    food=Math.max(0,food+foodRate*5-population*.72);
+    food=Math.max(0,food-population*TUNING.consumePerPerson+(farms.some(f=>f.active)?0:population*TUNING.foragePerPerson));
     // The first person can forage, but lasting population growth requires housing.
     if(houseCount>0 && food>population*4 && population<houseCount*3){
       const home=buildings.filter(b=>b.type==='house'&&b.done).find(b=>(b.occupants||0)<3);
       if(home){home.occupants=(home.occupants||0)+1;population++;food-=population*.8;births.push({x:home.x,z:home.z,house:buildings.indexOf(home)});}
     }
-    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);}
+    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);faith=Math.max(0,faith-TUNING.faithStarvationLoss);}
+    // Faith (GAMEPLAY_TASK step 2): grows while the village eats well.
+    if(food>population*2) faith=Math.min(faithCap,faith+population*TUNING.faithSurplusRate);
+    faith=Math.min(faith,faithCap);
     if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.ceil((population+1)/5)) && food>35 && wood>=4)){
       const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('水辺に近い平地に農地が作られました');}
     }
@@ -214,28 +252,21 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
       }
     }
     updateTerrainColors();
-    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:(avg*100).toFixed(0),births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),houseLocations:buildings.filter(b=>b.type==='house'&&b.done).map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z,type:s.type})),forestLocation:{x:17,z:-8}});
+    onStatus(null,{food:Math.floor(food),wood:Math.floor(wood),population,farmCount,houseCount,foodRate:foodRate.toFixed(1),fertility:farms.length?Math.round(farms.reduce((s,f)=>s+f.fertility,0)/farms.length*100):'—',faith:Math.floor(faith),faithCap,births:births.splice(0),farmLocations:farms.map(f=>({x:f.x,z:f.z})),farmDetails:farms.map(f=>({x:f.x,z:f.z,crop:TUNING.crops[f.tier].name,fertility:Math.round(f.fertility*100),ticksLeft:f.active?TUNING.crops[f.tier].growthTicks-f.growth:null,yieldEst:Math.round(TUNING.crops[f.tier].yieldBase*(0.4+f.fertility))})),houseLocations:buildings.filter(b=>b.type==='house'&&b.done).map(b=>({x:b.x,z:b.z})),constructionLocations:constructionSites.map(s=>({x:s.building.position.x,z:s.building.position.z,type:s.type})),forestLocation:{x:17,z:-8}});
   }
   function update(dt) {
     elapsed+=dt;
     for(let i=constructionSites.length-1;i>=0;i--){
       const site=constructionSites[i];site.remaining-=dt;
       // Reveal the finished structure after a short visible construction phase.
-      if(site.remaining<=0){site.building.visible=true;world.remove(site.scaffold);constructionSites.splice(i,1);const doneB=buildings.find(b=>b.x===site.building.position.x&&b.z===site.building.position.z);if(doneB)doneB.done=true;}
+      if(site.remaining<=0){site.building.visible=true;world.remove(site.scaffold);constructionSites.splice(i,1);const doneB=buildings.find(b=>b.x===site.building.position.x&&b.z===site.building.position.z);if(doneB)doneB.done=true;const doneF=farms.find(f=>f.group===site.building);if(doneF)doneF.active=true;}
     }
-    if(rainLeft>0){
-      rainLeft-=dt;rain.visible=true;
-      const p=rainGeo.attributes.position;
-      for(let i=0;i<rainCount;i++){let y=p.getY(i)-dt*13;if(y<0){y=14+Math.random()*5;p.setX(i,(Math.random()-.5)*48);p.setZ(i,(Math.random()-.5)*48);}p.setY(i,y);}
-      p.needsUpdate=true;
-      for(const c of cells){c.moisture=Math.min(1,c.moisture+dt*.012);c.fertility=Math.min(1,c.fertility+dt*.0018);}
-      if(rainLeft<=0){rain.visible=false;updateTerrainColors();onStatus('雨が止んだ');}
-    }
+    if(cellsDirty){ colorTimer+=dt; if(colorTimer>.5){ updateTerrainColors(); cellsDirty=false; colorTimer=0; } }
     nextTick+=dt;if(nextTick>=5){nextTick=0;tick();}
   }
   // Start from an untouched landscape. The first resident must establish food production and shelter.
   updateTerrainColors();
   onStatus('文明のはじまり — 住民は一人。最初の農地を作ろう');
   tick();
-  return { update, setMode, startRain, handleClick, getStats:()=>({food,wood,population,farmCount,houseCount}) };
+  return { update, applyBlessedRain, canBless, getStats:()=>({food,wood,population,farmCount,houseCount,faith:Math.floor(faith)}) };
 }

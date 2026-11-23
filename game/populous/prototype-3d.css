@@ -19,3 +19,14 @@ button:hover{filter:brightness(1.1);transform:translateY(-1px)}button:focus-visi
 .buttons button{white-space:nowrap}
 button.active{background:#8fb77b;color:#17291f}
 @media(max-width:680px){.stats{gap:8px}.stats b{font-size:15px}.buttons{justify-content:center}.buttons button{padding:8px 9px;font-size:11px}}
+
+.faithbar{display:block;width:64px;height:5px;background:rgba(0,0,0,.45);border-radius:3px;margin-top:4px;overflow:hidden}
+.faithbar i{display:block;height:100%;width:0;background:#e9cf8c;border-radius:3px;transition:width .4s}
+button:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.6)}
+button:disabled:hover{transform:none;filter:grayscale(.6)}
+#farmInfo{position:fixed;z-index:3;left:18px;bottom:110px;max-width:250px;display:none}
+#farmInfo.open{display:block}
+#farmInfo h3{margin:0 0 6px;font-size:13px;letter-spacing:.05em}
+#farmInfo dl{margin:0;font-size:12px;line-height:1.8;color:var(--muted)}
+#farmInfo dl b{color:var(--ink);float:right;margin-left:18px;font-variant-numeric:tabular-nums}
+#miracle.active{background:#7fb2d9;color:#17303f}

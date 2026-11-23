@@ -12,13 +12,14 @@
 <div id="view" aria-label="3Dで描画された文明の世界"></div>
 <div class="hud">
  <div class="panel"><div class="brand">THE LIVING WORLD</div><div class="sub">A WORLD THAT GROWS · 3D SANDBOX</div><div id="mode">観察モード — まだ小さな村の世界</div></div>
- <div class="panel stats"><div>人口<b id="population">1</b></div><div>食料<b id="food">8</b></div><div>木材<b id="wood">10</b></div><div>農地<b id="farms">0</b></div><div>肥沃度<b id="fertility">—</b></div></div>
+ <div class="panel stats"><div>人口<b id="population">1</b></div><div>食料<b id="food">8</b></div><div>木材<b id="wood">10</b></div><div>農地<b id="farms">0</b></div><div>肥沃度<b id="fertility">—</b></div><div>信仰心<b id="faith">0</b><span class="faithbar"><i id="faithBar"></i></span></div></div>
 </div>
+<div id="farmInfo" class="panel"><h3 id="farmCrop">畑</h3><dl><div>肥沃度<b id="farmFert">—</b></div><div>次の収穫まで<b id="farmNext">—</b></div><div>収穫量の目安<b id="farmYield">—</b></div></dl></div>
 <div id="clock">WORLD TIME · 00:00</div>
 <div id="credit">PROCEDURAL LANDSCAPE · EARLY CONCEPT</div>
 <div class="controls">
- <div class="panel help">左ドラッグ：回転　／　右ドラッグ：平行移動　／　ホイール：ズーム<br>肥沃度ボタン後に地面をクリック　／　Q・E：回転</div>
- <div class="panel buttons"><button id="fertilityTool">土地を肥沃に</button><button id="rain">雨を降らせる</button><button id="home">村を見る</button><button id="rotate">自動回転：OFF</button><button id="pause">時間：停止</button><button id="quality">画質：HIGH</button></div>
+ <div class="panel help">左ドラッグ：回転　／　右ドラッグ：平行移動　／　ホイール：ズーム<br>恵みの雨：雲を動かして畑を潤す　／　Q・E：回転</div>
+ <div class="panel buttons"><button id="miracle">恵みの雨</button><button id="home">村を見る</button><button id="rotate">自動回転：OFF</button><button id="pause">時間：停止</button><button id="quality">画質：HIGH</button></div>
 </div>
 <script type="module" src="./prototype-3d.js"></script>
 </body></html>
