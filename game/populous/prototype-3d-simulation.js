@@ -252,7 +252,13 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     if((farmCount===0 && food>8) || (farmCount<Math.max(1,Math.ceil((population+1)/5)) && food>35 && wood>=4)){
       const p=availableSpot('farm');if(p){const c=nearestCell(p.x,p.z);wood=Math.max(0,wood-4);buildFarm(p.x,p.z,c.fertility);onStatus('水辺に近い平地に農地が作られました');}
     }
-    const farmCapacity=Math.max(1,farmCount)*5;
+    // Housing is gated by how many people the farms can actually feed.
+    // The old flat rule (farms x 5) ignored fertility entirely; now a
+    // well-kept farm counts for more, so the village ceiling rises with
+    // the harvest instead of stopping at a fixed number (a flat map with
+    // 10 farms used to cap the population at 51 = 17 houses x 3).
+    const fedCapacity=farms.reduce((sum,f)=>sum+(f.active?TUNING.crops[f.tier].yieldBase*(0.4+f.fertility)/TUNING.crops[f.tier].growthTicks:0),0)/TUNING.consumePerPerson;
+    const farmCapacity=Math.max(Math.max(1,farmCount)*5,fedCapacity);
     const needsHouse=(houseCount===0 && farmCount>0 && food>15 && wood>=8) ||
       (houseCount>0 && population>=houseCount*3 && farmCapacity>=population && food>35 && wood>=14);
     if(needsHouse){
