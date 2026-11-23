@@ -230,11 +230,16 @@ export function createWorldSimulation(THREE, world, terrain, terrainHeight, onSt
     wood=Math.min(80,wood+population*.22*5);
     food=Math.max(0,food-population*TUNING.consumePerPerson+(farms.some(f=>f.active)?0:population*TUNING.foragePerPerson));
     // The first person can forage, but lasting population growth requires housing.
-    if(houseCount>0 && food>population*4 && population<houseCount*3){
+    if(houseCount>0 && food>population*3 && population<houseCount*3){
       const home=buildings.filter(b=>b.type==='house'&&b.done).find(b=>(b.occupants||0)<3);
       if(home){home.occupants=(home.occupants||0)+1;population++;food-=population*.8;births.push({x:home.x,z:home.z,house:buildings.indexOf(home)});}
     }
-    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);faith=Math.max(0,faith-TUNING.faithStarvationLoss);}
+    else if(food<population*.55 && population>1){population--;food=Math.max(0,food-2);faith=Math.max(0,faith-TUNING.faithStarvationLoss);
+      // The dead resident's home frees up (this was missing: occupants only
+      // ever increased, so after a few starvation deaths every house looked
+      // full and births — and with them farm expansion — stopped for good).
+      const freed=buildings.filter(b=>b.type==='house'&&b.done&&(b.occupants||0)>0).sort((a,b)=>(b.occupants||0)-(a.occupants||0))[0];
+      if(freed)freed.occupants--;}
     // Faith (GAMEPLAY_TASK step 2): grows while the village eats well.
     if(food>population*2) faith=Math.min(faithCap,faith+population*TUNING.faithSurplusRate);
     faith=Math.min(faith,faithCap);
