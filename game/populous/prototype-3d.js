@@ -7,6 +7,7 @@ import { createNature } from './prototype-3d-nature.js';
 import { createVillagers } from './prototype-3d-villagers.js';
 import { createAtmosphere } from './prototype-3d-atmosphere.js';
 import { createMiracle } from './prototype-3d-miracle.js';
+import { advanceWorldClock } from './prototype-3d-utils.js';
 // Quality preset (GRAPHICS_TASK step 0): ?quality=low|high, default high.
 // HIGH enables the extra graphics work; LOW keeps the load at or below the original.
 const quality = new URLSearchParams(location.search).get('quality') === 'low' ? 'low' : 'high';
@@ -174,7 +175,7 @@ qualityBtn.addEventListener('click',()=>{
 });
 document.querySelector('#pause').addEventListener('click',e=>{timeRunning=!timeRunning;e.currentTarget.textContent='時間：'+(timeRunning?'進行':'停止');document.querySelector('#mode').textContent=timeRunning?'観察モード — 村の一日が流れています':'観察モード — 時間を止めています';});
 const clockEl=document.querySelector('#clock');
-clockEl.textContent=atmosphere.fmtClock(0);
+clockEl.textContent=atmosphere.fmtClock();
 
 const clock=new THREE.Clock();
 function animate(){
@@ -184,6 +185,7 @@ function animate(){
     villageArchitecture.update(dt);
     simulation.update(dt);
     elapsed+=dt;
+    advanceWorldClock(dt);
     villagersApi.update(dt, elapsed);
     if (miracleApi && miracleApi.isActive() && pointerOnScreen) {
       groundRay.setFromCamera(pointerNdc, camera);
@@ -191,11 +193,11 @@ function animate(){
       if (hit) miracleApi.setTarget(hit.point);
     }
     if (miracleApi) miracleApi.update(dt);
-    clockEl.textContent=atmosphere.fmtClock(elapsed);
+    clockEl.textContent=atmosphere.fmtClock();
   }
   if(autoRotate){yaw+=dt*.055;updateCamera();}
   const t=performance.now()*0.001;
-  atmosphere.update(elapsed, t);
+  atmosphere.update(t);
   water.update(t);
   renderer.render(scene,camera);
 }

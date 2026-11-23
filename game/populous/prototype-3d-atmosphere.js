@@ -1,11 +1,11 @@
 // THE LIVING WORLD — split from prototype-3d.js on 2026-11-22 so each part
 // can be improved independently. Behaviour is unchanged by the split.
 // Atmosphere: lights, the procedural sky, the day/night sun cycle, clouds,
-// distant birds and drifting dust. update(elapsed, t) is called every frame;
-// elapsed freezes when time is stopped, and so does the light.
+// distant birds and drifting dust. update(t) is called every frame; the
+// light follows the shared world clock, which freezes when time is stopped.
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
-import { WORLD_MIN_PER_SEC } from './prototype-3d-utils.js';
+import { worldMinutes } from './prototype-3d-utils.js';
 
 export function createAtmosphere(scene, renderer, T, HIGH){
 const { onLand, terrainHeight } = T;
@@ -60,20 +60,18 @@ for(let i=0;i<8;i++){
   cloud.position.set(-42+i*12,17+(i%3)*2.4,-27+(i%4)*14);cloud.scale.setScalar(.8+(i%3)*.16);clouds.add(cloud);
 }
 // --- Atmosphere and time (GRAPHICS_TASK step 6) --------------------------
-// WORLD TIME starts at 08:00 and advances with elapsed at WORLD_MIN_PER_SEC
-// (6 world minutes per real second since 2026-11-22, 3x the previous rate at
-// the user's request, so a full day takes about 4 real minutes). The sun, sky, fog and
-// light levels follow it; when time is stopped, elapsed is frozen and so is
-// the light. Night keeps a moonlight floor so the world never goes black.
+// WORLD TIME comes from the shared clock in utils (starts 08:00, 6 world
+// minutes per real second, nights 3x faster since 2026-11-23). The sun,
+// sky, fog and light levels follow it; when time is stopped, the main
+// module stops advancing the clock and the light freezes with it. Night
+// keeps a moonlight floor so the world never goes black.
 // Bloom was not added: swapping the render path for an EffectComposer risks
 // the frame loop and the look for a marginal gain (task sheet: skip if heavy).
-const WORLD_START=8*60;
-const worldMinutes=(elapsed)=> (WORLD_START + elapsed*WORLD_MIN_PER_SEC) % 1440;
 const _cA=new THREE.Color(), _cB=new THREE.Color();
 const SUN_DAY=new THREE.Color(0xffe3b5), SUN_DUSK=new THREE.Color(0xff8f4d), SUN_NIGHT=new THREE.Color(0x93b8e8);
 const FOG_DAY=new THREE.Color(0xbcd3da), FOG_DUSK=new THREE.Color(0xe9b287), FOG_NIGHT=new THREE.Color(0x27354a);
-function updateSun(elapsed){
-  const a=(worldMinutes(elapsed)-360)/720*Math.PI;      // 06:00 sunrise -> 18:00 sunset
+function updateSun(){
+  const a=(worldMinutes()-360)/720*Math.PI;      // 06:00 sunrise -> 18:00 sunset
   const elev=Math.sin(a);
   const dayF=THREE.MathUtils.clamp((elev+0.02)/0.30,0,1);
   const duskF=THREE.MathUtils.clamp(1-Math.abs(elev)*2.6,0,1)*(elev>-0.2?1:0);
@@ -125,11 +123,11 @@ let dustGeo=null, dustBase=null;
   scene.add(dust);
 }
 const clockEl=document.querySelector('#clock');
-const fmtClock=(elapsed)=> 'WORLD TIME · '+String(Math.floor(worldMinutes(elapsed)/60)).padStart(2,'0')+':'+String(Math.floor(worldMinutes(elapsed)%60)).padStart(2,'0');
-updateSun(0);
+const fmtClock=()=> 'WORLD TIME · '+String(Math.floor(worldMinutes()/60)).padStart(2,'0')+':'+String(Math.floor(worldMinutes()%60)).padStart(2,'0');
+updateSun();
 
-function update(elapsed, t){
-  updateSun(elapsed);
+function update(t){
+  updateSun();
   for(const b of birds){
     const ang=t*b.sp+b.ph;
     b.g.position.set(Math.cos(ang)*b.R, b.h+Math.sin(t*.3+b.ph)*1.4, Math.sin(ang)*b.R);
